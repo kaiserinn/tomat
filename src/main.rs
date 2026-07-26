@@ -1,6 +1,8 @@
 use iced::{Length, Subscription, Task, widget};
 use std::time::Duration;
 
+mod icon;
+
 fn main() -> iced::Result {
     tracing_subscriber::fmt::init();
 
@@ -77,9 +79,9 @@ impl Tomat {
 
         let mut controls = widget::row![
             widget::button(if self.timer_state.is_playing() {
-                "Pause"
+                icon::pause().size(20)
             } else {
-                "Play"
+                icon::play().size(20)
             })
             .on_press(Message::ToggleState),
         ]
@@ -87,7 +89,7 @@ impl Tomat {
 
         if !self.timer_state.is_stopped() {
             controls = controls.push(
-                widget::button("Stop").on_press(Message::Reset),
+                widget::button(icon::stop().size(20)).on_press(Message::Reset),
             )
         }
 
