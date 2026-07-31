@@ -60,3 +60,15 @@ pub fn pause<'a>() -> Icon<'a> {
 pub fn stop<'a>() -> Icon<'a> {
     Icon::new(Handle::from_memory(include_bytes!("../assets/stop.svg")))
 }
+
+pub fn settings<'a>() -> Icon<'a> {
+    Icon::new(Handle::from_memory(include_bytes!("../assets/settings.svg")))
+}
+
+pub fn caret_right<'a>() -> Icon<'a> {
+    Icon::new(Handle::from_memory(include_bytes!("../assets/caret-right.svg")))
+}
+
+pub fn caret_left<'a>() -> Icon<'a> {
+    Icon::new(Handle::from_memory(include_bytes!("../assets/caret-left.svg")))
+}

@@ -1,7 +1,9 @@
-use iced::{Length, Subscription, Task, widget};
-use std::time::Duration;
+use crate::screen::{Screen, settings::Action, timer};
+use iced::{Subscription, widget};
 
 mod icon;
+mod screen;
+mod settings;
 
 fn main() -> iced::Result {
     tracing_subscriber::fmt::init();
@@ -12,131 +14,90 @@ fn main() -> iced::Result {
 }
 
 struct Tomat {
-    remaining: u64,
-    timer_state: TimerState,
-    settings: Settings,
+    screen: Screen,
+    timer_state: Option<timer::Timer>,
+    settings: settings::Settings,
+    started: std::time::Instant,
 }
 
 #[derive(Clone, Debug)]
 enum Message {
-    Tick,
-    ToggleState,
-    Reset,
+    StartupMeasured,
+    Timer(timer::Message),
+    Settings(screen::settings::Message),
 }
 
 impl Tomat {
     fn new() -> Self {
-        let settings = Settings::new();
+        let settings = settings::Settings::new();
 
         Self {
-            remaining: settings.pomodoro_duration,
-            timer_state: TimerState::Stopped,
+            screen: Screen::Timer(timer::Timer::new(settings.clone())),
+            timer_state: None,
             settings,
+            started: std::time::Instant::now(),
         }
     }
 
-    fn update(&mut self, message: Message) -> iced::Task<Message> {
+    fn update(&mut self, message: Message) {
         match message {
-            Message::Tick => {
-                if self.remaining > 0 {
-                    self.remaining -= 1;
+            Message::StartupMeasured => {
+                println!("Startup time (event): {:?}", self.started.elapsed());
+            }
+            Message::Timer(message) => {
+                if let Screen::Timer(state) = &mut self.screen {
+                    match state.update(message) {
+                        timer::Action::OpenSettings => {
+                            if let Screen::Timer(state) = &self.screen {
+                                self.timer_state = Some(state.clone());
+                            }
+                            self.screen = Screen::Settings(
+                                screen::Settings::new(self.settings.clone()),
+                            )
+                        }
+                        timer::Action::None => (),
+                    }
                 }
-                Task::none()
             }
-            Message::ToggleState => {
-                self.timer_state.toggle();
-
-                Task::none()
-            }
-            Message::Reset => {
-                self.remaining = self.settings.pomodoro_duration;
-                self.timer_state = TimerState::Stopped;
-                Task::none()
+            Message::Settings(message) => {
+                if let Screen::Settings(state) = &mut self.screen {
+                    match state.update(message) {
+                        Action::Back => {
+                            let state = if let Some(mut state) = self.timer_state.clone() {
+                                state.settings = self.settings.clone();
+                                state.remaining = state.settings.pomodoro_duration;
+                                state
+                            } else {
+                                timer::Timer::new(self.settings.clone())
+                            };
+                            self.screen = Screen::Timer(state);
+                        }
+                        Action::Apply(settings) => {
+                            self.settings = settings
+                        },
+                        Action::None => (),
+                    }
+                }
             }
         }
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        if self.timer_state.is_playing() {
-            iced::time::every(Duration::from_millis(1000))
-                .map(|_| Message::Tick)
-        } else {
-            Subscription::none()
-        }
+        let startup = iced::window::open_events().map(|_| Message::StartupMeasured);
+        let subscription = match &self.screen {
+            Screen::Timer(state) => state.subscription().map(Message::Timer),
+            Screen::Settings(_) => Subscription::none(),
+        };
+
+        Subscription::batch(vec![startup, subscription])
     }
 
     fn view(&self) -> iced::Element<'_, Message> {
-        let hours = self.remaining / 3600;
-        let minutes = (self.remaining % 3600) / 60;
-        let seconds = self.remaining % 60;
-
-        let time =
-            widget::text(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
-                .size(120);
-
-        let main_container =
-            widget::container(time).padding(24).center(Length::Fill);
-
-        let mut controls = widget::row![
-            widget::button(if self.timer_state.is_playing() {
-                icon::pause().size(20)
-            } else {
-                icon::play().size(20)
-            })
-            .on_press(Message::ToggleState),
-        ]
-        .spacing(8);
-
-        if !self.timer_state.is_stopped() {
-            controls = controls.push(
-                widget::button(icon::stop().size(20)).on_press(Message::Reset),
-            )
-        }
-
-        let pin = widget::pin(controls)
-            .width(Length::Shrink)
-            .height(Length::Shrink);
-
-        let pin_container = widget::container(pin)
-            .padding(24)
-            .center_x(Length::Fill)
-            .align_bottom(Length::Fill);
-
-        widget::stack![main_container, pin_container].into()
-    }
-}
-
-struct Settings {
-    pomodoro_duration: u64,
-}
-
-impl Settings {
-    fn new() -> Self {
-        Self {
-            pomodoro_duration: 25 * 60,
-        }
-    }
-}
-
-enum TimerState {
-    Playing,
-    Paused,
-    Stopped,
-}
-
-impl TimerState {
-    fn toggle(&mut self) {
-        *self = match self {
-            TimerState::Playing => TimerState::Paused,
-            TimerState::Paused | TimerState::Stopped => TimerState::Playing,
+        let content = match &self.screen {
+            Screen::Timer(state) => state.view().map(Message::Timer),
+            Screen::Settings(state) => state.view().map(Message::Settings),
         };
-    }
 
-    fn is_playing(&self) -> bool {
-        matches!(self, TimerState::Playing)
-    }
-
-    fn is_stopped(&self) -> bool {
-        matches!(self, TimerState::Stopped)
+        widget::container(widget::container(content).padding(24)).into()
     }
 }
