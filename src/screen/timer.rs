@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use iced::{Alignment, Length, Subscription, Task, widget};
+use iced::{Alignment, Length, Subscription, Task, padding, widget};
 
 use crate::{icon, settings::Settings};
 
@@ -109,11 +109,31 @@ impl Timer {
         let time =
             widget::text(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
                 .size(140);
-
         let phase = widget::text(self.phase.to_string()).size(20);
 
+        let session_count: iced::Element<_> = if self.settings.pomodoro_count
+            > 10
+        {
+            widget::text(format!(
+                "{}/{}",
+                self.session_count, self.settings.pomodoro_count
+            ))
+            .size(16)
+            .into()
+        } else {
+            let mut row = widget::Row::new().spacing(16);
+            for _ in 0..self.session_count {
+                row = row.push(icon::circle_filled().size(16));
+            }
+            for _ in 0..(self.settings.pomodoro_count - self.session_count) {
+                row = row.push(icon::circle_outline().size(16));
+            }
+            row.into()
+        };
+
         let main_container = widget::container(
-            widget::column![phase, time].align_x(Alignment::Center),
+            widget::column![phase, time, session_count]
+                .align_x(Alignment::Center),
         )
         .center(Length::Fill);
 

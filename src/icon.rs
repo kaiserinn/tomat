@@ -76,3 +76,11 @@ pub fn caret_left<'a>() -> Icon<'a> {
 pub fn skip<'a>() -> Icon<'a> {
     Icon::new(Handle::from_memory(include_bytes!("../assets/skip.svg")))
 }
+
+pub fn circle_outline<'a>() -> Icon<'a> {
+    Icon::new(Handle::from_memory(include_bytes!("../assets/circle-outline.svg")))
+}
+
+pub fn circle_filled<'a>() -> Icon<'a> {
+    Icon::new(Handle::from_memory(include_bytes!("../assets/circle-filled.svg")))
+}
