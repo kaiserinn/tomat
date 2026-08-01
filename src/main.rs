@@ -1,5 +1,5 @@
 use crate::screen::{Screen, settings::Action, timer};
-use iced::{Subscription, widget};
+use iced::{Subscription, Task, widget};
 
 mod icon;
 mod screen;
@@ -39,10 +39,12 @@ impl Tomat {
         }
     }
 
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::StartupMeasured => {
                 println!("Startup time (event): {:?}", self.started.elapsed());
+
+                Task::none()
             }
             Message::Timer(message) => {
                 if let Screen::Timer(state) = &mut self.screen {
@@ -53,37 +55,52 @@ impl Tomat {
                             }
                             self.screen = Screen::Settings(
                                 screen::Settings::new(self.settings.clone()),
-                            )
+                            );
+
+                            Task::none()
                         }
-                        timer::Action::None => (),
+                        timer::Action::NextPhase(task) => task.map(Message::Timer),
+                        timer::Action::None => Task::none(),
                     }
+                } else {
+                    Task::none()
                 }
             }
             Message::Settings(message) => {
                 if let Screen::Settings(state) = &mut self.screen {
                     match state.update(message) {
                         Action::Back => {
-                            let state = if let Some(mut state) = self.timer_state.clone() {
+                            let state = if let Some(mut state) =
+                                self.timer_state.clone()
+                            {
                                 state.settings = self.settings.clone();
-                                state.remaining = state.settings.pomodoro_duration;
+                                state.time_remaining =
+                                    state.settings.pomodoro_duration;
                                 state
                             } else {
                                 timer::Timer::new(self.settings.clone())
                             };
                             self.screen = Screen::Timer(state);
+
+                            Task::none()
                         }
                         Action::Apply(settings) => {
-                            self.settings = settings
-                        },
-                        Action::None => (),
+                            self.settings = settings;
+
+                            Task::none()
+                        }
+                        Action::None => Task::none(),
                     }
+                } else {
+                    Task::none()
                 }
             }
         }
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let startup = iced::window::open_events().map(|_| Message::StartupMeasured);
+        let startup =
+            iced::window::open_events().map(|_| Message::StartupMeasured);
         let subscription = match &self.screen {
             Screen::Timer(state) => state.subscription().map(Message::Timer),
             Screen::Settings(_) => Subscription::none(),
@@ -98,6 +115,6 @@ impl Tomat {
             Screen::Settings(state) => state.view().map(Message::Settings),
         };
 
-        widget::container(widget::container(content).padding(24)).into()
+        widget::container(content).padding(24).into()
     }
 }

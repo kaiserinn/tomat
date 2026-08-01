@@ -72,3 +72,7 @@ pub fn caret_right<'a>() -> Icon<'a> {
 pub fn caret_left<'a>() -> Icon<'a> {
     Icon::new(Handle::from_memory(include_bytes!("../assets/caret-left.svg")))
 }
+
+pub fn skip<'a>() -> Icon<'a> {
+    Icon::new(Handle::from_memory(include_bytes!("../assets/skip.svg")))
+}

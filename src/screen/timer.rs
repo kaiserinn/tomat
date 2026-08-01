@@ -1,14 +1,16 @@
 use std::time::Duration;
 
-use iced::{Length, Subscription, widget};
+use iced::{Alignment, Length, Subscription, Task, widget};
 
 use crate::{icon, settings::Settings};
 
 #[derive(Clone, Debug)]
 pub struct Timer {
-    pub remaining: u64,
-    pub timer_state: TimerState,
     pub settings: Settings,
+    pub time_remaining: u64,
+    status: TimerStatus,
+    phase: Phase,
+    session_count: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -17,39 +19,72 @@ pub enum Message {
     ToggleState,
     Reset,
     OpenSettings,
+    NextPhase,
 }
 
 pub enum Action {
     None,
     OpenSettings,
+    NextPhase(Task<Message>),
 }
 
 impl Timer {
     pub fn new(settings: Settings) -> Self {
         Self {
-            remaining: settings.pomodoro_duration,
-            timer_state: TimerState::Stopped,
+            time_remaining: settings.pomodoro_duration,
+            status: TimerStatus::Idle,
             settings,
+            phase: Phase::Focus,
+            session_count: 0,
         }
     }
 
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Tick => {
-                if self.remaining > 0 {
-                    self.remaining -= 1;
+                if self.time_remaining > 0 {
+                    self.time_remaining -= 1;
+                }
+
+                if self.time_remaining == 0 {
+                    return Action::NextPhase(Task::done(Message::NextPhase));
                 }
 
                 Action::None
             }
-            Message::ToggleState => {
-                self.timer_state.toggle();
+            Message::NextPhase => {
+                if self.phase.is_focus()
+                    && self.session_count < self.settings.pomodoro_count
+                {
+                    self.session_count += 1;
+                } else if self.phase.is_long_break() {
+                    self.session_count = 0;
+                }
+
+                self.phase = match self.phase {
+                    Phase::Focus
+                        if self.session_count
+                            == self.settings.pomodoro_count =>
+                    {
+                        Phase::LongBreak
+                    }
+                    Phase::Focus => Phase::Break,
+                    Phase::Break | Phase::LongBreak => Phase::Focus,
+                };
+
+                self.time_remaining = self.settings.duration_for(self.phase);
+                self.status = TimerStatus::Idle;
 
                 Action::None
-            },
+            }
+            Message::ToggleState => {
+                self.status.toggle();
+
+                Action::None
+            }
             Message::Reset => {
-                self.remaining = self.settings.pomodoro_duration;
-                self.timer_state = TimerState::Stopped;
+                self.time_remaining = self.settings.pomodoro_duration;
+                self.status = TimerStatus::Idle;
 
                 Action::None
             }
@@ -58,7 +93,7 @@ impl Timer {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        if self.timer_state.is_playing() {
+        if self.status.is_playing() {
             iced::time::every(Duration::from_millis(1000))
                 .map(|_| Message::Tick)
         } else {
@@ -67,19 +102,23 @@ impl Timer {
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        let hours = self.remaining / 3600;
-        let minutes = (self.remaining % 3600) / 60;
-        let seconds = self.remaining % 60;
+        let hours = self.time_remaining / 3600;
+        let minutes = (self.time_remaining % 3600) / 60;
+        let seconds = self.time_remaining % 60;
 
         let time =
             widget::text(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
-                .size(120);
+                .size(140);
 
-        let main_container =
-            widget::container(time).center(Length::Fill);
+        let phase = widget::text(self.phase.to_string()).size(20);
+
+        let main_container = widget::container(
+            widget::column![phase, time].align_x(Alignment::Center),
+        )
+        .center(Length::Fill);
 
         let mut controls = widget::row![
-            widget::button(if self.timer_state.is_playing() {
+            widget::button(if self.status.is_playing() {
                 icon::pause().size(20)
             } else {
                 icon::play().size(20)
@@ -88,19 +127,22 @@ impl Timer {
         ]
         .spacing(8);
 
-        if !self.timer_state.is_stopped() {
+        if !self.status.is_idle() {
             controls = controls.push(
                 widget::button(icon::stop().size(20)).on_press(Message::Reset),
             )
         }
+
+        controls = controls.push(
+            widget::button(icon::skip().size(20)).on_press(Message::NextPhase),
+        );
 
         let settings = widget::button(icon::settings().size(20))
             .on_press(Message::OpenSettings)
             .style(widget::button::background);
 
         let row = widget::row![
-            widget::container(settings)
-                .width(Length::Fill),
+            widget::container(settings).width(Length::Fill),
             controls,
             widget::space().width(Length::Fill)
         ];
@@ -116,25 +158,52 @@ impl Timer {
 }
 
 #[derive(Clone, Debug)]
-pub enum TimerState {
-    Playing,
+enum TimerStatus {
+    Running,
     Paused,
-    Stopped,
+    Idle,
 }
 
-impl TimerState {
+impl TimerStatus {
     fn toggle(&mut self) {
         *self = match self {
-            TimerState::Playing => TimerState::Paused,
-            TimerState::Paused | TimerState::Stopped => TimerState::Playing,
+            TimerStatus::Running => TimerStatus::Paused,
+            TimerStatus::Paused | TimerStatus::Idle => TimerStatus::Running,
         };
     }
 
     fn is_playing(&self) -> bool {
-        matches!(self, TimerState::Playing)
+        matches!(self, TimerStatus::Running)
     }
 
-    fn is_stopped(&self) -> bool {
-        matches!(self, TimerState::Stopped)
+    fn is_idle(&self) -> bool {
+        matches!(self, TimerStatus::Idle)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Copy)]
+pub enum Phase {
+    Focus,
+    Break,
+    LongBreak,
+}
+
+impl Phase {
+    fn is_focus(&self) -> bool {
+        matches!(self, Self::Focus)
+    }
+
+    fn is_long_break(&self) -> bool {
+        matches!(self, Self::LongBreak)
+    }
+}
+
+impl std::fmt::Display for Phase {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Phase::Focus => write!(f, "Focus"),
+            Phase::Break => write!(f, "Break"),
+            Phase::LongBreak => write!(f, "Long Break"),
+        }
     }
 }

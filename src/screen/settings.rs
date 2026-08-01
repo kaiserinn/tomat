@@ -40,7 +40,7 @@ impl Settings {
                 Action::None
             }
             Message::ShortBreakDurationChange(c) => {
-                self.settings.short_break_duration =
+                self.settings.break_duration =
                     c.parse::<u64>().unwrap() * 60;
 
                 Action::None
@@ -52,7 +52,7 @@ impl Settings {
                 Action::None
             }
             Message::LongBreakIntervalChange(c) => {
-                self.settings.long_break_interval = c.parse().unwrap();
+                self.settings.pomodoro_count = c.parse().unwrap();
 
                 Action::None
             }
@@ -88,14 +88,14 @@ impl Settings {
             "Short break duration (minutes)",
             widget::text_input(
                 "",
-                &(self.settings.short_break_duration / 60).to_string(),
+                &(self.settings.break_duration / 60).to_string(),
             )
             .on_input(|c| {
                 if c.is_empty() || c.parse::<u64>().is_ok() {
                     Message::ShortBreakDurationChange(c)
                 } else {
                     Message::ShortBreakDurationChange(
-                        (self.settings.short_break_duration / 60).to_string(),
+                        (self.settings.break_duration / 60).to_string(),
                     )
                 }
             }),
@@ -122,14 +122,14 @@ impl Settings {
             "Long break interval",
             widget::text_input(
                 "",
-                &self.settings.long_break_interval.to_string(),
+                &self.settings.pomodoro_count.to_string(),
             )
             .on_input(|c| {
                 if c.is_empty() || c.parse::<u64>().is_ok() {
                     Message::LongBreakIntervalChange(c)
                 } else {
                     Message::LongBreakIntervalChange(
-                        (self.settings.long_break_interval / 60).to_string(),
+                        (self.settings.pomodoro_count / 60).to_string(),
                     )
                 }
             }),
