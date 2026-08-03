@@ -1,14 +1,14 @@
 use crate::screen::timer::Phase;
 
 #[derive(Clone, Debug)]
-pub struct Settings {
+pub struct Preferences {
     pub pomodoro_duration: u64,
     pub break_duration: u64,
     pub long_break_duration: u64,
     pub pomodoro_count: u32,
 }
 
-impl Settings {
+impl Preferences {
     pub fn new() -> Self {
         Self {
             pomodoro_duration: 25 * 60,

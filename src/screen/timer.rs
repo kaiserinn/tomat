@@ -2,11 +2,11 @@ use std::time::Duration;
 
 use iced::{Alignment, Length, Subscription, Task, padding, widget};
 
-use crate::{icon, settings::Settings};
+use crate::{icon, preferences::Preferences};
 
 #[derive(Clone, Debug)]
 pub struct Timer {
-    pub settings: Settings,
+    pub preferences: Preferences,
     pub time_remaining: u64,
     status: TimerStatus,
     phase: Phase,
@@ -29,11 +29,11 @@ pub enum Action {
 }
 
 impl Timer {
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(preferences: Preferences) -> Self {
         Self {
-            time_remaining: settings.pomodoro_duration,
+            time_remaining: preferences.pomodoro_duration,
             status: TimerStatus::Idle,
-            settings,
+            preferences,
             phase: Phase::Focus,
             session_count: 0,
         }
@@ -54,7 +54,7 @@ impl Timer {
             }
             Message::NextPhase => {
                 if self.phase.is_focus()
-                    && self.session_count < self.settings.pomodoro_count
+                    && self.session_count < self.preferences.pomodoro_count
                 {
                     self.session_count += 1;
                 } else if self.phase.is_long_break() {
@@ -64,7 +64,7 @@ impl Timer {
                 self.phase = match self.phase {
                     Phase::Focus
                         if self.session_count
-                            == self.settings.pomodoro_count =>
+                            == self.preferences.pomodoro_count =>
                     {
                         Phase::LongBreak
                     }
@@ -72,7 +72,7 @@ impl Timer {
                     Phase::Break | Phase::LongBreak => Phase::Focus,
                 };
 
-                self.time_remaining = self.settings.duration_for(self.phase);
+                self.time_remaining = self.preferences.duration_for(self.phase);
                 self.status = TimerStatus::Idle;
 
                 Action::None
@@ -83,7 +83,7 @@ impl Timer {
                 Action::None
             }
             Message::Reset => {
-                self.time_remaining = self.settings.pomodoro_duration;
+                self.time_remaining = self.preferences.duration_for(self.phase);
                 self.status = TimerStatus::Idle;
 
                 Action::None
@@ -111,12 +111,12 @@ impl Timer {
                 .size(140);
         let phase = widget::text(self.phase.to_string()).size(20);
 
-        let session_count: iced::Element<_> = if self.settings.pomodoro_count
+        let session_count: iced::Element<_> = if self.preferences.pomodoro_count
             > 10
         {
             widget::text(format!(
                 "{}/{}",
-                self.session_count, self.settings.pomodoro_count
+                self.session_count, self.preferences.pomodoro_count
             ))
             .size(16)
             .into()
@@ -125,7 +125,7 @@ impl Timer {
             for _ in 0..self.session_count {
                 row = row.push(icon::circle_filled().size(16));
             }
-            for _ in 0..(self.settings.pomodoro_count - self.session_count) {
+            for _ in 0..(self.preferences.pomodoro_count - self.session_count) {
                 row = row.push(icon::circle_outline().size(16));
             }
             row.into()

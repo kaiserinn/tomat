@@ -2,10 +2,10 @@ use iced::Alignment;
 use iced::{Length, widget};
 
 use crate::icon;
-use crate::settings;
+use crate::preferences::Preferences;
 
 pub struct Settings {
-    settings: settings::Settings,
+    preferences: Preferences,
 }
 
 #[derive(Clone, Debug)]
@@ -21,38 +21,38 @@ pub enum Message {
 pub enum Action {
     None,
     Back,
-    Apply(settings::Settings),
+    Apply(Preferences),
 }
 
 impl Settings {
-    pub fn new(settings: settings::Settings) -> Self {
-        Self { settings }
+    pub fn new(preferences: Preferences) -> Self {
+        Self { preferences }
     }
 
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Back => Action::Back,
-            Message::Apply => Action::Apply(self.settings.clone()),
+            Message::Apply => Action::Apply(self.preferences.clone()),
             Message::PomodoroDurationChange(c) => {
-                self.settings.pomodoro_duration =
+                self.preferences.pomodoro_duration =
                     c.parse::<u64>().unwrap() * 60;
 
                 Action::None
             }
             Message::ShortBreakDurationChange(c) => {
-                self.settings.break_duration =
+                self.preferences.break_duration =
                     c.parse::<u64>().unwrap() * 60;
 
                 Action::None
             }
             Message::LongBreakDurationChange(c) => {
-                self.settings.long_break_duration =
+                self.preferences.long_break_duration =
                     c.parse::<u64>().unwrap() * 60;
 
                 Action::None
             }
             Message::LongBreakIntervalChange(c) => {
-                self.settings.pomodoro_count = c.parse().unwrap();
+                self.preferences.pomodoro_count = c.parse().unwrap();
 
                 Action::None
             }
@@ -71,14 +71,14 @@ impl Settings {
             "Pomodoro duration (minutes)",
             widget::text_input(
                 "",
-                &(self.settings.pomodoro_duration / 60).to_string(),
+                &(self.preferences.pomodoro_duration / 60).to_string(),
             )
             .on_input(|c| {
                 if c.is_empty() || c.parse::<u64>().is_ok() {
                     Message::PomodoroDurationChange(c)
                 } else {
                     Message::PomodoroDurationChange(
-                        (self.settings.pomodoro_duration / 60).to_string(),
+                        (self.preferences.pomodoro_duration / 60).to_string(),
                     )
                 }
             }),
@@ -88,14 +88,14 @@ impl Settings {
             "Short break duration (minutes)",
             widget::text_input(
                 "",
-                &(self.settings.break_duration / 60).to_string(),
+                &(self.preferences.break_duration / 60).to_string(),
             )
             .on_input(|c| {
                 if c.is_empty() || c.parse::<u64>().is_ok() {
                     Message::ShortBreakDurationChange(c)
                 } else {
                     Message::ShortBreakDurationChange(
-                        (self.settings.break_duration / 60).to_string(),
+                        (self.preferences.break_duration / 60).to_string(),
                     )
                 }
             }),
@@ -105,14 +105,14 @@ impl Settings {
             "Long break duration (minutes)",
             widget::text_input(
                 "",
-                &(self.settings.long_break_duration / 60).to_string(),
+                &(self.preferences.long_break_duration / 60).to_string(),
             )
             .on_input(|c| {
                 if c.is_empty() || c.parse::<u64>().is_ok() {
                     Message::LongBreakDurationChange(c)
                 } else {
                     Message::LongBreakDurationChange(
-                        (self.settings.long_break_duration / 60).to_string(),
+                        (self.preferences.long_break_duration / 60).to_string(),
                     )
                 }
             }),
@@ -122,14 +122,14 @@ impl Settings {
             "Long break interval",
             widget::text_input(
                 "",
-                &self.settings.pomodoro_count.to_string(),
+                &self.preferences.pomodoro_count.to_string(),
             )
             .on_input(|c| {
                 if c.is_empty() || c.parse::<u64>().is_ok() {
                     Message::LongBreakIntervalChange(c)
                 } else {
                     Message::LongBreakIntervalChange(
-                        (self.settings.pomodoro_count / 60).to_string(),
+                        (self.preferences.pomodoro_count / 60).to_string(),
                     )
                 }
             }),

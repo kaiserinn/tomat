@@ -1,9 +1,10 @@
-use crate::screen::{Screen, settings::Action, timer};
+use crate::screen::{Screen, settings, timer};
 use iced::{Subscription, Task, widget};
+use preferences::Preferences;
 
 mod icon;
+mod preferences;
 mod screen;
-mod settings;
 
 fn main() -> iced::Result {
     tracing_subscriber::fmt::init();
@@ -16,7 +17,7 @@ fn main() -> iced::Result {
 struct Tomat {
     screen: Screen,
     timer_state: Option<timer::Timer>,
-    settings: settings::Settings,
+    preferences: Preferences,
     started: std::time::Instant,
 }
 
@@ -24,17 +25,17 @@ struct Tomat {
 enum Message {
     StartupMeasured,
     Timer(timer::Message),
-    Settings(screen::settings::Message),
+    Settings(settings::Message),
 }
 
 impl Tomat {
     fn new() -> Self {
-        let settings = settings::Settings::new();
+        let preferences = Preferences::new();
 
         Self {
-            screen: Screen::Timer(timer::Timer::new(settings.clone())),
+            screen: Screen::Timer(timer::Timer::new(preferences.clone())),
             timer_state: None,
-            settings,
+            preferences,
             started: std::time::Instant::now(),
         }
     }
@@ -48,19 +49,23 @@ impl Tomat {
             }
             Message::Timer(message) => {
                 if let Screen::Timer(state) = &mut self.screen {
+                    use timer::Action;
+
                     match state.update(message) {
-                        timer::Action::OpenSettings => {
+                        Action::OpenSettings => {
                             if let Screen::Timer(state) = &self.screen {
                                 self.timer_state = Some(state.clone());
                             }
                             self.screen = Screen::Settings(
-                                screen::Settings::new(self.settings.clone()),
+                                settings::Settings::new(self.preferences.clone()),
                             );
 
                             Task::none()
                         }
-                        timer::Action::NextPhase(task) => task.map(Message::Timer),
-                        timer::Action::None => Task::none(),
+                        Action::NextPhase(task) => {
+                            task.map(Message::Timer)
+                        }
+                        Action::None => Task::none(),
                     }
                 } else {
                     Task::none()
@@ -68,24 +73,26 @@ impl Tomat {
             }
             Message::Settings(message) => {
                 if let Screen::Settings(state) = &mut self.screen {
+                    use settings::Action;
+
                     match state.update(message) {
                         Action::Back => {
                             let state = if let Some(mut state) =
                                 self.timer_state.clone()
                             {
-                                state.settings = self.settings.clone();
+                                state.preferences = self.preferences.clone();
                                 state.time_remaining =
-                                    state.settings.pomodoro_duration;
+                                    state.preferences.pomodoro_duration;
                                 state
                             } else {
-                                timer::Timer::new(self.settings.clone())
+                                timer::Timer::new(self.preferences.clone())
                             };
                             self.screen = Screen::Timer(state);
 
                             Task::none()
                         }
                         Action::Apply(settings) => {
-                            self.settings = settings;
+                            self.preferences = settings;
 
                             Task::none()
                         }
