@@ -129,7 +129,7 @@ impl Settings {
                     Message::LongBreakIntervalChange(c)
                 } else {
                     Message::LongBreakIntervalChange(
-                        (self.preferences.pomodoro_count / 60).to_string(),
+                        self.preferences.pomodoro_count.to_string(),
                     )
                 }
             }),

@@ -18,12 +18,10 @@ struct Tomat {
     screen: Screen,
     timer_state: Option<timer::Timer>,
     preferences: Preferences,
-    started: std::time::Instant,
 }
 
 #[derive(Clone, Debug)]
 enum Message {
-    StartupMeasured,
     Timer(timer::Message),
     Settings(settings::Message),
 }
@@ -33,38 +31,34 @@ impl Tomat {
         let preferences = Preferences::new();
 
         Self {
-            screen: Screen::Timer(timer::Timer::new(preferences.clone())),
+            screen: Screen::Timer(timer::Timer::new(&preferences)),
             timer_state: None,
             preferences,
-            started: std::time::Instant::now(),
         }
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::StartupMeasured => {
-                println!("Startup time (event): {:?}", self.started.elapsed());
-
-                Task::none()
-            }
             Message::Timer(message) => {
                 if let Screen::Timer(state) = &mut self.screen {
                     use timer::Action;
 
-                    match state.update(message) {
+                    match state.update(message, &self.preferences) {
                         Action::OpenSettings => {
-                            if let Screen::Timer(state) = &self.screen {
-                                self.timer_state = Some(state.clone());
-                            }
-                            self.screen = Screen::Settings(
-                                settings::Settings::new(self.preferences.clone()),
+                            let settings = settings::Settings::new(
+                                self.preferences.clone(),
                             );
+
+                            if let Screen::Timer(state) = std::mem::replace(
+                                &mut self.screen,
+                                Screen::Settings(settings),
+                            ) {
+                                self.timer_state = Some(state);
+                            }
 
                             Task::none()
                         }
-                        Action::NextPhase(task) => {
-                            task.map(Message::Timer)
-                        }
+                        Action::NextPhase(task) => task.map(Message::Timer),
                         Action::None => Task::none(),
                     }
                 } else {
@@ -77,22 +71,19 @@ impl Tomat {
 
                     match state.update(message) {
                         Action::Back => {
-                            let state = if let Some(mut state) =
-                                self.timer_state.clone()
-                            {
-                                state.preferences = self.preferences.clone();
-                                state.time_remaining =
-                                    state.preferences.pomodoro_duration;
-                                state
-                            } else {
-                                timer::Timer::new(self.preferences.clone())
-                            };
-                            self.screen = Screen::Timer(state);
+                            if let Some(timer_state) = self.timer_state.take() {
+                                self.screen = Screen::Timer(timer_state);
+                            }
 
                             Task::none()
                         }
-                        Action::Apply(settings) => {
-                            self.preferences = settings;
+                        Action::Apply(preferences) => {
+                            self.preferences = preferences;
+
+                            if let Some(timer_state) = &mut self.timer_state {
+                                timer_state
+                                    .refresh_time_remaining(&self.preferences);
+                            }
 
                             Task::none()
                         }
@@ -106,19 +97,17 @@ impl Tomat {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let startup =
-            iced::window::open_events().map(|_| Message::StartupMeasured);
-        let subscription = match &self.screen {
+        match &self.screen {
             Screen::Timer(state) => state.subscription().map(Message::Timer),
             Screen::Settings(_) => Subscription::none(),
-        };
-
-        Subscription::batch(vec![startup, subscription])
+        }
     }
 
     fn view(&self) -> iced::Element<'_, Message> {
         let content = match &self.screen {
-            Screen::Timer(state) => state.view().map(Message::Timer),
+            Screen::Timer(state) => {
+                state.view(&self.preferences).map(Message::Timer)
+            }
             Screen::Settings(state) => state.view().map(Message::Settings),
         };
 

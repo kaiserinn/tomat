@@ -1,13 +1,12 @@
 use std::time::Duration;
 
-use iced::{Alignment, Length, Subscription, Task, padding, widget};
+use iced::{Alignment, Length, Subscription, Task, widget};
 
 use crate::{icon, preferences::Preferences};
 
 #[derive(Clone, Debug)]
 pub struct Timer {
-    pub preferences: Preferences,
-    pub time_remaining: u64,
+    time_remaining: u64,
     status: TimerStatus,
     phase: Phase,
     session_count: u32,
@@ -29,17 +28,20 @@ pub enum Action {
 }
 
 impl Timer {
-    pub fn new(preferences: Preferences) -> Self {
+    pub fn new(preferences: &Preferences) -> Self {
         Self {
             time_remaining: preferences.pomodoro_duration,
             status: TimerStatus::Idle,
-            preferences,
             phase: Phase::Focus,
             session_count: 0,
         }
     }
 
-    pub fn update(&mut self, message: Message) -> Action {
+    pub fn update(
+        &mut self,
+        message: Message,
+        preferences: &Preferences,
+    ) -> Action {
         match message {
             Message::Tick => {
                 if self.time_remaining > 0 {
@@ -54,7 +56,7 @@ impl Timer {
             }
             Message::NextPhase => {
                 if self.phase.is_focus()
-                    && self.session_count < self.preferences.pomodoro_count
+                    && self.session_count < preferences.pomodoro_count
                 {
                     self.session_count += 1;
                 } else if self.phase.is_long_break() {
@@ -63,8 +65,7 @@ impl Timer {
 
                 self.phase = match self.phase {
                     Phase::Focus
-                        if self.session_count
-                            == self.preferences.pomodoro_count =>
+                        if self.session_count == preferences.pomodoro_count =>
                     {
                         Phase::LongBreak
                     }
@@ -72,7 +73,7 @@ impl Timer {
                     Phase::Break | Phase::LongBreak => Phase::Focus,
                 };
 
-                self.time_remaining = self.preferences.duration_for(self.phase);
+                self.time_remaining = preferences.duration_for(self.phase);
                 self.status = TimerStatus::Idle;
 
                 Action::None
@@ -83,12 +84,18 @@ impl Timer {
                 Action::None
             }
             Message::Reset => {
-                self.time_remaining = self.preferences.duration_for(self.phase);
+                self.time_remaining = preferences.duration_for(self.phase);
                 self.status = TimerStatus::Idle;
 
                 Action::None
             }
             Message::OpenSettings => Action::OpenSettings,
+        }
+    }
+
+    pub fn refresh_time_remaining(&mut self, preferences: &Preferences) {
+        if self.status.is_idle() {
+            self.time_remaining = preferences.duration_for(self.phase);
         }
     }
 
@@ -101,7 +108,10 @@ impl Timer {
         }
     }
 
-    pub fn view(&self) -> iced::Element<'_, Message> {
+    pub fn view(
+        &self,
+        preferences: &Preferences,
+    ) -> iced::Element<'_, Message> {
         let hours = self.time_remaining / 3600;
         let minutes = (self.time_remaining % 3600) / 60;
         let seconds = self.time_remaining % 60;
@@ -111,12 +121,11 @@ impl Timer {
                 .size(140);
         let phase = widget::text(self.phase.to_string()).size(20);
 
-        let session_count: iced::Element<_> = if self.preferences.pomodoro_count
-            > 10
+        let session_count: iced::Element<_> = if preferences.pomodoro_count > 10
         {
             widget::text(format!(
                 "{}/{}",
-                self.session_count, self.preferences.pomodoro_count
+                self.session_count, preferences.pomodoro_count
             ))
             .size(16)
             .into()
@@ -125,7 +134,7 @@ impl Timer {
             for _ in 0..self.session_count {
                 row = row.push(icon::circle_filled().size(16));
             }
-            for _ in 0..(self.preferences.pomodoro_count - self.session_count) {
+            for _ in 0..(preferences.pomodoro_count - self.session_count) {
                 row = row.push(icon::circle_outline().size(16));
             }
             row.into()
