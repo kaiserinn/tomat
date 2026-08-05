@@ -1,8 +1,12 @@
-use std::time::Duration;
-
-use iced::{Alignment, Length, Subscription, Task, widget};
-
 use crate::{icon, preferences::Preferences};
+use iced::{
+    Alignment::Center,
+    Element,
+    Length::Fill,
+    Subscription, Task,
+    widget::{button, column, container, row, space::horizontal, stack, text},
+};
+use std::time::Duration;
 
 #[derive(Clone, Debug)]
 pub struct Timer {
@@ -100,7 +104,7 @@ impl Timer {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        if self.status.is_playing() {
+        if self.status.is_running() {
             iced::time::every(Duration::from_millis(1000))
                 .map(|_| Message::Tick)
         } else {
@@ -108,82 +112,69 @@ impl Timer {
         }
     }
 
-    pub fn view(
-        &self,
-        preferences: &Preferences,
-    ) -> iced::Element<'_, Message> {
+    pub fn view(&self, preferences: &Preferences) -> Element<'_, Message> {
         let hours = self.time_remaining / 3600;
         let minutes = (self.time_remaining % 3600) / 60;
         let seconds = self.time_remaining % 60;
 
-        let time =
-            widget::text(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
-                .size(140);
-        let phase = widget::text(self.phase.to_string()).size(20);
+        let time = text(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
+            .size(140);
+        let phase = text(self.phase.to_string()).size(20);
 
-        let session_count: iced::Element<_> = if preferences.pomodoro_count > 10
-        {
-            widget::text(format!(
+        let session_count: Element<_> = if preferences.pomodoro_count > 10 {
+            text(format!(
                 "{}/{}",
                 self.session_count, preferences.pomodoro_count
             ))
             .size(16)
             .into()
         } else {
-            let mut row = widget::Row::new().spacing(16);
-            for _ in 0..self.session_count {
-                row = row.push(icon::circle_filled().size(16));
-            }
-            for _ in 0..(preferences.pomodoro_count - self.session_count) {
-                row = row.push(icon::circle_outline().size(16));
-            }
-            row.into()
+            session_dots(self.session_count, preferences.pomodoro_count)
         };
 
-        let main_container = widget::container(
-            widget::column![phase, time, session_count]
-                .align_x(Alignment::Center),
-        )
-        .center(Length::Fill);
+        let main =
+            container(column![phase, time, session_count].align_x(Center))
+                .center(Fill);
 
-        let mut controls = widget::row![
-            widget::button(if self.status.is_playing() {
-                icon::pause().size(20)
-            } else {
-                icon::play().size(20)
-            })
-            .on_press(Message::ToggleState),
-        ]
+        let controls = row![
+                button(if self.status.is_running() {
+                    icon::pause().size(20)
+                } else {
+                    icon::play().size(20)
+                }).on_press(Message::ToggleState),
+
+                (!self.status.is_idle())
+                    .then(|| button(icon::stop().size(20))
+                        .on_press(Message::Reset)),
+
+                button(icon::skip().size(20)).on_press(Message::NextPhase)
+            ]
         .spacing(8);
 
-        if !self.status.is_idle() {
-            controls = controls.push(
-                widget::button(icon::stop().size(20)).on_press(Message::Reset),
-            )
-        }
-
-        controls = controls.push(
-            widget::button(icon::skip().size(20)).on_press(Message::NextPhase),
-        );
-
-        let settings = widget::button(icon::settings().size(20))
+        let settings = button(icon::settings().size(20))
             .on_press(Message::OpenSettings)
-            .style(widget::button::background);
+            .style(button::background);
 
-        let row = widget::row![
-            widget::container(settings).width(Length::Fill),
-            controls,
-            widget::space().width(Length::Fill)
-        ];
+        let footer =
+            row![container(settings).width(Fill), controls, horizontal()];
 
-        widget::stack![
-            main_container,
-            widget::container(row)
-                .center_x(Length::Fill)
-                .align_bottom(Length::Fill),
-        ]
-        .into()
+        stack![main, container(footer).center_x(Fill).align_bottom(Fill),]
+            .into()
     }
+}
+
+fn session_dots<'a>(count: u32, total: u32) -> Element<'a, Message> {
+    let dots = (0..total).map(|i| {
+        (if i < count {
+            icon::circle_filled()
+        } else {
+            icon::circle_outline()
+        })
+        .size(16)
+        .into()
+    });
+
+    row(dots).spacing(16).into()
 }
 
 #[derive(Clone, Debug)]
@@ -201,7 +192,7 @@ impl TimerStatus {
         };
     }
 
-    fn is_playing(&self) -> bool {
+    fn is_running(&self) -> bool {
         matches!(self, TimerStatus::Running)
     }
 
