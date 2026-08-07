@@ -1,5 +1,5 @@
 use crate::screen::{Screen, settings, timer};
-use iced::{Subscription, Task, widget};
+use iced::{Element, Subscription, Task, widget};
 use preferences::Preferences;
 
 mod font;
@@ -76,11 +76,7 @@ impl Tomat {
 
                     match state.update(message) {
                         Action::Back => {
-                            if let Some(mut timer_state) =
-                                self.timer_state.take()
-                            {
-                                timer_state.run(&self.preferences);
-
+                            if let Some(timer_state) = self.timer_state.take() {
                                 self.screen = Screen::Timer(timer_state);
                             }
 
@@ -112,7 +108,7 @@ impl Tomat {
         }
     }
 
-    fn view(&self) -> iced::Element<'_, Message> {
+    fn view(&self) -> Element<'_, Message> {
         let content = match &self.screen {
             Screen::Timer(state) => {
                 state.view(&self.preferences).map(Message::Timer)

@@ -65,12 +65,8 @@ pub fn settings<'a>() -> Icon<'a> {
     Icon::new(Handle::from_memory(include_bytes!("../assets/settings.svg")))
 }
 
-pub fn caret_right<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/caret-right.svg")))
-}
-
-pub fn caret_left<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/caret-left.svg")))
+pub fn chevron_left<'a>() -> Icon<'a> {
+    Icon::new(Handle::from_memory(include_bytes!("../assets/chevron-left.svg")))
 }
 
 pub fn skip<'a>() -> Icon<'a> {
@@ -83,4 +79,12 @@ pub fn circle_outline<'a>() -> Icon<'a> {
 
 pub fn circle_filled<'a>() -> Icon<'a> {
     Icon::new(Handle::from_memory(include_bytes!("../assets/circle-filled.svg")))
+}
+
+pub fn plus<'a>() -> Icon<'a> {
+    Icon::new(Handle::from_memory(include_bytes!("../assets/plus.svg")))
+}
+
+pub fn minus<'a>() -> Icon<'a> {
+    Icon::new(Handle::from_memory(include_bytes!("../assets/minus.svg")))
 }

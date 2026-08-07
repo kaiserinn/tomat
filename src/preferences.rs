@@ -14,7 +14,7 @@ impl Preferences {
     pub fn new() -> Self {
         Self {
             pomodoro_duration: Duration::from_secs(25 * 60),
-            break_duration: Duration::from_secs(30),
+            break_duration: Duration::from_secs(5 * 60),
             long_break_duration: Duration::from_secs(20 * 60),
             pomodoro_count: 4,
         }

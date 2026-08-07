@@ -1,10 +1,12 @@
-use std::time::Duration;
-
-use iced::Alignment;
-use iced::{Length, widget};
-
 use crate::icon;
 use crate::preferences::Preferences;
+use iced::{
+    Alignment, Element, Length,
+    widget::{
+        button, center_x, column, container, row, stack, text, text_input,
+    },
+};
+use std::time::Duration;
 
 pub struct Settings {
     preferences: Preferences,
@@ -13,10 +15,10 @@ pub struct Settings {
 #[derive(Clone, Debug)]
 pub enum Message {
     Back,
-    PomodoroDurationChange(String),
-    ShortBreakDurationChange(String),
-    LongBreakDurationChange(String),
-    LongBreakIntervalChange(String),
+    PomodoroDurationChange(Option<u64>),
+    BreakDurationChange(Option<u64>),
+    LongBreakDurationChange(Option<u64>),
+    PomodoroCountChange(Option<u64>),
     Apply,
 }
 
@@ -36,140 +38,134 @@ impl Settings {
             Message::Back => Action::Back,
             Message::Apply => Action::Apply(self.preferences.clone()),
             Message::PomodoroDurationChange(c) => {
-                self.preferences.pomodoro_duration =
-                    Duration::from_secs(c.parse::<u64>().unwrap() * 60);
+                if let Some(c) = c {
+                    self.preferences.pomodoro_duration =
+                        Duration::from_secs(c * 60);
+                }
 
                 Action::None
             }
-            Message::ShortBreakDurationChange(c) => {
-                self.preferences.break_duration =
-                    Duration::from_secs(c.parse::<u64>().unwrap() * 60);
+            Message::BreakDurationChange(c) => {
+                if let Some(c) = c {
+                    self.preferences.break_duration =
+                        Duration::from_secs(c * 60);
+                }
 
                 Action::None
             }
             Message::LongBreakDurationChange(c) => {
-                self.preferences.long_break_duration =
-                    Duration::from_secs(c.parse::<u64>().unwrap() * 60);
+                if let Some(c) = c {
+                    self.preferences.long_break_duration =
+                        Duration::from_secs(c * 60);
+                }
 
                 Action::None
             }
-            Message::LongBreakIntervalChange(c) => {
-                self.preferences.pomodoro_count = c.parse().unwrap();
+            Message::PomodoroCountChange(c) => {
+                if let Some(c) = c {
+                    self.preferences.pomodoro_count =
+                        c.try_into().unwrap_or_default();
+                }
 
                 Action::None
             }
         }
     }
 
-    pub fn view(&self) -> iced::Element<'_, Message> {
-        let back = widget::button(widget::row![
-            icon::caret_left().size(20),
-            widget::text("Back")
-        ])
+    pub fn view(&self) -> Element<'_, Message> {
+        let back = button(
+            row![icon::chevron_left().width(20), text("Back")].spacing(4),
+        )
+        .padding(5)
         .on_press(Message::Back)
-        .style(widget::button::background);
+        .style(button::background);
 
-        let pomodoro_duration = settings_item(
-            "Pomodoro duration (minutes)",
-            widget::text_input(
-                "",
-                &(self.preferences.pomodoro_duration.as_secs() / 60).to_string(),
-            )
-            .on_input(|c| {
-                if c.is_empty() || c.parse::<u64>().is_ok() {
-                    Message::PomodoroDurationChange(c)
-                } else {
-                    Message::PomodoroDurationChange(
-                        (self.preferences.pomodoro_duration.as_secs() / 60).to_string(),
-                    )
-                }
-            }),
-        );
+        let main = {
+            let pomodoro_duration = settings_item(
+                "Pomodoro duration (minutes)",
+                number_input(self.preferences.pomodoro_duration.as_secs() / 60)
+                    .map(Message::PomodoroDurationChange),
+            );
 
-        let short_break_duration = settings_item(
-            "Short break duration (minutes)",
-            widget::text_input(
-                "",
-                &(self.preferences.break_duration.as_secs() / 60).to_string(),
-            )
-            .on_input(|c| {
-                if c.is_empty() || c.parse::<u64>().is_ok() {
-                    Message::ShortBreakDurationChange(c)
-                } else {
-                    Message::ShortBreakDurationChange(
-                        (self.preferences.break_duration.as_secs() / 60).to_string(),
-                    )
-                }
-            }),
-        );
+            let break_duration = settings_item(
+                "Break duration (minutes)",
+                number_input(self.preferences.break_duration.as_secs() / 60)
+                    .map(Message::BreakDurationChange),
+            );
 
-        let long_break_duration = settings_item(
-            "Long break duration (minutes)",
-            widget::text_input(
-                "",
-                &(self.preferences.long_break_duration.as_secs() / 60).to_string(),
-            )
-            .on_input(|c| {
-                if c.is_empty() || c.parse::<u64>().is_ok() {
-                    Message::LongBreakDurationChange(c)
-                } else {
-                    Message::LongBreakDurationChange(
-                        (self.preferences.long_break_duration.as_secs() / 60).to_string(),
-                    )
-                }
-            }),
-        );
+            let long_break_duration = settings_item(
+                "Long break duration (minutes)",
+                number_input(
+                    self.preferences.long_break_duration.as_secs() / 60,
+                )
+                .map(Message::LongBreakDurationChange),
+            );
 
-        let long_break_interval = settings_item(
-            "Long break interval",
-            widget::text_input(
-                "",
-                &self.preferences.pomodoro_count.to_string(),
-            )
-            .on_input(|c| {
-                if c.is_empty() || c.parse::<u64>().is_ok() {
-                    Message::LongBreakIntervalChange(c)
-                } else {
-                    Message::LongBreakIntervalChange(
-                        self.preferences.pomodoro_count.to_string(),
-                    )
-                }
-            }),
-        );
+            let pomodoro_count = settings_item(
+                "Pomodoro count per cycle",
+                number_input(self.preferences.pomodoro_count.into())
+                    .map(Message::PomodoroCountChange),
+            );
 
-        let column = widget::column![
-            back,
-            pomodoro_duration,
-            short_break_duration,
-            long_break_duration,
-            long_break_interval,
-        ]
-        .spacing(16);
+            column![
+                pomodoro_duration,
+                break_duration,
+                long_break_duration,
+                pomodoro_count,
+            ]
+            .spacing(16)
+            .max_width(800)
+            .align_x(Alignment::Center)
+        };
 
-        let stack = widget::stack![
+        let column = column![back, center_x(main)].spacing(16);
+
+        let stack = stack![
             column,
-            widget::container(widget::button("Apply").on_press(Message::Apply))
+            container(button("Apply").on_press(Message::Apply))
                 .align_bottom(Length::Fill)
                 .align_right(Length::Fill)
         ]
         .height(Length::Fill);
 
-        widget::container(stack)
+        container(stack)
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
     }
 }
 
+fn number_input<'a>(value: u64) -> Element<'a, Option<u64>> {
+    row![
+        button(icon::minus().size(20))
+            .on_press(Some(value.saturating_sub(1)))
+            .style(button::subtle),
+        text_input("", &value.to_string())
+            .width(80)
+            .align_x(Alignment::Center)
+            .on_input(move |c| {
+                if c.is_empty() {
+                    None
+                } else if let Ok(v) = c.parse() {
+                    Some(v)
+                } else {
+                    Some(value)
+                }
+            }),
+        button(icon::plus().size(20))
+            .on_press(Some(value.saturating_add(1)))
+            .style(button::subtle),
+    ]
+    .spacing(4)
+    .into()
+}
+
 fn settings_item<'a>(
     label: &'a str,
     widget: impl Into<iced::Element<'a, Message>>,
 ) -> iced::Element<'a, Message> {
-    widget::row![
-        widget::text(label).width(Length::FillPortion(1)),
-        widget::container(widget).width(Length::FillPortion(3)),
-    ]
-    .spacing(16)
-    .align_y(Alignment::Center)
-    .into()
+    row![text(label).size(18).width(Length::Fill), container(widget)]
+        .spacing(16)
+        .align_y(Alignment::Center)
+        .into()
 }

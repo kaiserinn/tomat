@@ -100,7 +100,9 @@ impl Timer {
                 Action::None
             }
             Message::OpenSettings => {
-                self.pause();
+                if self.status.is_running() {
+                    self.pause();
+                }
 
                 Action::OpenSettings
             }
