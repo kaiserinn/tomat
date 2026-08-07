@@ -6,11 +6,11 @@ use iced::{
     Subscription, Task,
     widget::{button, column, container, row, space::horizontal, stack, text},
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug)]
 pub struct Timer {
-    time_remaining: u64,
+    time_remaining: Duration,
     status: TimerStatus,
     phase: Phase,
     session_count: u32,
@@ -18,8 +18,8 @@ pub struct Timer {
 
 #[derive(Clone, Debug)]
 pub enum Message {
-    Tick,
-    ToggleState,
+    Tick(Instant),
+    ToggleTimer,
     Reset,
     OpenSettings,
     NextPhase,
@@ -47,12 +47,13 @@ impl Timer {
         preferences: &Preferences,
     ) -> Action {
         match message {
-            Message::Tick => {
-                if self.time_remaining > 0 {
-                    self.time_remaining -= 1;
+            Message::Tick(now) => {
+                if let TimerStatus::Running(target_time) = self.status {
+                    self.time_remaining =
+                        target_time.saturating_duration_since(now);
                 }
 
-                if self.time_remaining == 0 {
+                if self.time_remaining.is_zero() {
                     return Action::NextPhase(Task::done(Message::NextPhase));
                 }
 
@@ -82,8 +83,13 @@ impl Timer {
 
                 Action::None
             }
-            Message::ToggleState => {
-                self.status.toggle();
+            Message::ToggleTimer => {
+                match self.status {
+                    TimerStatus::Idle | TimerStatus::Paused => {
+                        self.run(preferences)
+                    }
+                    TimerStatus::Running(_) => self.pause(),
+                };
 
                 Action::None
             }
@@ -93,7 +99,30 @@ impl Timer {
 
                 Action::None
             }
-            Message::OpenSettings => Action::OpenSettings,
+            Message::OpenSettings => {
+                self.pause();
+
+                Action::OpenSettings
+            }
+        }
+    }
+
+    pub fn pause(&mut self) {
+        if let TimerStatus::Running(target_time) = self.status {
+            self.time_remaining =
+                target_time.saturating_duration_since(Instant::now());
+            self.status = TimerStatus::Paused;
+        }
+    }
+
+    pub fn run(&mut self, preferences: &Preferences) {
+        if self.status.is_idle() {
+            let duration = preferences.duration_for(self.phase);
+
+            self.status = TimerStatus::Running(Instant::now() + duration)
+        } else if self.status.is_paused() {
+            self.status =
+                TimerStatus::Running(Instant::now() + self.time_remaining)
         }
     }
 
@@ -105,23 +134,25 @@ impl Timer {
 
     pub fn subscription(&self) -> Subscription<Message> {
         if self.status.is_running() {
-            iced::time::every(Duration::from_millis(1000))
-                .map(|_| Message::Tick)
+            iced::time::every(Duration::from_millis(500))
+                .map(|_| Message::Tick(Instant::now()))
         } else {
             Subscription::none()
         }
     }
 
     pub fn view(&self, preferences: &Preferences) -> Element<'_, Message> {
-        let hours = self.time_remaining / 3600;
-        let minutes = (self.time_remaining % 3600) / 60;
-        let seconds = self.time_remaining % 60;
+        let remaining = self.time_remaining.as_secs_f32().ceil() as u32;
+
+        let hours = remaining / 3600;
+        let minutes = (remaining % 3600) / 60;
+        let seconds = remaining % 60;
 
         let time = text(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
             .size(140);
         let phase = text(self.phase.to_string()).size(20);
 
-        let session_count: Element<_> = if preferences.pomodoro_count > 10 {
+        let session_count = if preferences.pomodoro_count > 10 {
             text(format!(
                 "{}/{}",
                 self.session_count, preferences.pomodoro_count
@@ -141,7 +172,7 @@ impl Timer {
                     icon::pause().size(20)
                 } else {
                     icon::play().size(20)
-                }).on_press(Message::ToggleState),
+                }).on_press(Message::ToggleTimer),
 
                 (!self.status.is_idle())
                     .then(|| button(icon::stop().size(20))
@@ -156,7 +187,7 @@ impl Timer {
             .style(button::background);
 
         let footer =
-            row![container(settings).width(Fill), controls, horizontal()];
+            row![container(settings).width(Fill), controls, horizontal(),];
 
         stack![main, container(footer).center_x(Fill).align_bottom(Fill),]
             .into()
@@ -179,21 +210,18 @@ fn session_dots<'a>(count: u32, total: u32) -> Element<'a, Message> {
 
 #[derive(Clone, Debug)]
 enum TimerStatus {
-    Running,
+    Running(Instant),
     Paused,
     Idle,
 }
 
 impl TimerStatus {
-    fn toggle(&mut self) {
-        *self = match self {
-            TimerStatus::Running => TimerStatus::Paused,
-            TimerStatus::Paused | TimerStatus::Idle => TimerStatus::Running,
-        };
+    fn is_running(&self) -> bool {
+        matches!(self, TimerStatus::Running(_))
     }
 
-    fn is_running(&self) -> bool {
-        matches!(self, TimerStatus::Running)
+    fn is_paused(&self) -> bool {
+        matches!(self, TimerStatus::Paused)
     }
 
     fn is_idle(&self) -> bool {

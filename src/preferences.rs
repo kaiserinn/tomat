@@ -1,24 +1,26 @@
+use std::time::Duration;
+
 use crate::screen::timer::Phase;
 
 #[derive(Clone, Debug)]
 pub struct Preferences {
-    pub pomodoro_duration: u64,
-    pub break_duration: u64,
-    pub long_break_duration: u64,
+    pub pomodoro_duration: Duration,
+    pub break_duration: Duration,
+    pub long_break_duration: Duration,
     pub pomodoro_count: u32,
 }
 
 impl Preferences {
     pub fn new() -> Self {
         Self {
-            pomodoro_duration: 25 * 60,
-            break_duration: 5 * 60,
-            long_break_duration: 20 * 60,
+            pomodoro_duration: Duration::from_secs(25 * 60),
+            break_duration: Duration::from_secs(30),
+            long_break_duration: Duration::from_secs(20 * 60),
             pomodoro_count: 4,
         }
     }
 
-    pub fn duration_for(&self, phase: Phase) -> u64 {
+    pub fn duration_for(&self, phase: Phase) -> Duration {
         match phase {
             Phase::Focus => self.pomodoro_duration,
             Phase::Break => self.break_duration,

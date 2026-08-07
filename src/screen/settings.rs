@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use iced::Alignment;
 use iced::{Length, widget};
 
@@ -35,19 +37,19 @@ impl Settings {
             Message::Apply => Action::Apply(self.preferences.clone()),
             Message::PomodoroDurationChange(c) => {
                 self.preferences.pomodoro_duration =
-                    c.parse::<u64>().unwrap() * 60;
+                    Duration::from_secs(c.parse::<u64>().unwrap() * 60);
 
                 Action::None
             }
             Message::ShortBreakDurationChange(c) => {
                 self.preferences.break_duration =
-                    c.parse::<u64>().unwrap() * 60;
+                    Duration::from_secs(c.parse::<u64>().unwrap() * 60);
 
                 Action::None
             }
             Message::LongBreakDurationChange(c) => {
                 self.preferences.long_break_duration =
-                    c.parse::<u64>().unwrap() * 60;
+                    Duration::from_secs(c.parse::<u64>().unwrap() * 60);
 
                 Action::None
             }
@@ -71,14 +73,14 @@ impl Settings {
             "Pomodoro duration (minutes)",
             widget::text_input(
                 "",
-                &(self.preferences.pomodoro_duration / 60).to_string(),
+                &(self.preferences.pomodoro_duration.as_secs() / 60).to_string(),
             )
             .on_input(|c| {
                 if c.is_empty() || c.parse::<u64>().is_ok() {
                     Message::PomodoroDurationChange(c)
                 } else {
                     Message::PomodoroDurationChange(
-                        (self.preferences.pomodoro_duration / 60).to_string(),
+                        (self.preferences.pomodoro_duration.as_secs() / 60).to_string(),
                     )
                 }
             }),
@@ -88,14 +90,14 @@ impl Settings {
             "Short break duration (minutes)",
             widget::text_input(
                 "",
-                &(self.preferences.break_duration / 60).to_string(),
+                &(self.preferences.break_duration.as_secs() / 60).to_string(),
             )
             .on_input(|c| {
                 if c.is_empty() || c.parse::<u64>().is_ok() {
                     Message::ShortBreakDurationChange(c)
                 } else {
                     Message::ShortBreakDurationChange(
-                        (self.preferences.break_duration / 60).to_string(),
+                        (self.preferences.break_duration.as_secs() / 60).to_string(),
                     )
                 }
             }),
@@ -105,14 +107,14 @@ impl Settings {
             "Long break duration (minutes)",
             widget::text_input(
                 "",
-                &(self.preferences.long_break_duration / 60).to_string(),
+                &(self.preferences.long_break_duration.as_secs() / 60).to_string(),
             )
             .on_input(|c| {
                 if c.is_empty() || c.parse::<u64>().is_ok() {
                     Message::LongBreakDurationChange(c)
                 } else {
                     Message::LongBreakDurationChange(
-                        (self.preferences.long_break_duration / 60).to_string(),
+                        (self.preferences.long_break_duration.as_secs() / 60).to_string(),
                     )
                 }
             }),

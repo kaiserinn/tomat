@@ -71,7 +71,9 @@ impl Tomat {
 
                     match state.update(message) {
                         Action::Back => {
-                            if let Some(timer_state) = self.timer_state.take() {
+                            if let Some(mut timer_state) = self.timer_state.take() {
+                                timer_state.run(&self.preferences);
+
                                 self.screen = Screen::Timer(timer_state);
                             }
 
