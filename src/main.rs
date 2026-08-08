@@ -2,6 +2,7 @@ use crate::screen::{Screen, settings, timer};
 use iced::{Subscription, Task, widget};
 use preferences::Preferences;
 
+mod font;
 mod icon;
 mod preferences;
 mod screen;
@@ -11,6 +12,10 @@ fn main() -> iced::Result {
 
     iced::application(Tomat::new, Tomat::update, Tomat::view)
         .subscription(Tomat::subscription)
+        .font(font::IOSEVKA)
+        .font(font::IOSEVKA_BOLD)
+        .font(font::IOSEVKA_ITALIC)
+        .default_font(font::REGULAR)
         .run()
 }
 
@@ -71,7 +76,9 @@ impl Tomat {
 
                     match state.update(message) {
                         Action::Back => {
-                            if let Some(mut timer_state) = self.timer_state.take() {
+                            if let Some(mut timer_state) =
+                                self.timer_state.take()
+                            {
                                 timer_state.run(&self.preferences);
 
                                 self.screen = Screen::Timer(timer_state);
