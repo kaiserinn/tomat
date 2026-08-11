@@ -1,9 +1,10 @@
 use crate::icon;
 use crate::preferences::Preferences;
 use iced::{
-    Alignment, Element, Length,
+    Alignment, Element, Length, padding,
     widget::{
-        button, center_x, column, container, row, stack, text, text_input,
+        Row, button, center_x, column, container, row, stack, text, text_input,
+        toggler,
     },
 };
 use std::time::Duration;
@@ -19,6 +20,8 @@ pub enum Message {
     BreakDurationChange(Option<u64>),
     LongBreakDurationChange(Option<u64>),
     PomodoroCountChange(Option<u64>),
+    AutoStartEnabledChange(bool),
+    AutoStartDelayChange(Option<u64>),
     Apply,
 }
 
@@ -69,6 +72,18 @@ impl Settings {
 
                 Action::None
             }
+            Message::AutoStartEnabledChange(c) => {
+                self.preferences.auto_start.enabled = c;
+
+                Action::None
+            }
+            Message::AutoStartDelayChange(c) => {
+                if let Some(c) = c {
+                    self.preferences.auto_start.delay = Duration::from_secs(c);
+                }
+
+                Action::None
+            }
         }
     }
 
@@ -107,11 +122,35 @@ impl Settings {
                     .map(Message::PomodoroCountChange),
             );
 
+            let auto_start = settings_item(
+                "Auto start next phase",
+                toggler(self.preferences.auto_start.enabled)
+                    .size(24)
+                    .on_toggle(Message::AutoStartEnabledChange),
+            );
+
+            let auto_start_delay = if self.preferences.auto_start.enabled {
+                Some(
+                    settings_item(
+                        "Auto start delay (seconds)",
+                        number_input(
+                            self.preferences.auto_start.delay.as_secs(),
+                        )
+                        .map(Message::AutoStartDelayChange),
+                    )
+                    .padding(padding::left(40)),
+                )
+            } else {
+                None
+            };
+
             column![
                 pomodoro_duration,
                 break_duration,
                 long_break_duration,
                 pomodoro_count,
+                auto_start,
+                auto_start_delay,
             ]
             .spacing(16)
             .max_width(800)
@@ -163,9 +202,8 @@ fn number_input<'a>(value: u64) -> Element<'a, Option<u64>> {
 fn settings_item<'a>(
     label: &'a str,
     widget: impl Into<iced::Element<'a, Message>>,
-) -> iced::Element<'a, Message> {
+) -> Row<'a, Message> {
     row![text(label).size(18).width(Length::Fill), container(widget)]
         .spacing(16)
         .align_y(Alignment::Center)
-        .into()
 }

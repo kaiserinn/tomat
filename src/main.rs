@@ -63,7 +63,7 @@ impl Tomat {
 
                             Task::none()
                         }
-                        Action::NextPhase(task) => task.map(Message::Timer),
+                        Action::Task(task) => task.map(Message::Timer),
                         Action::None => Task::none(),
                     }
                 } else {

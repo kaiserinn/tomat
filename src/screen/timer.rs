@@ -7,6 +7,7 @@ use iced::{
     widget::{button, column, container, row, space::horizontal, stack, text},
 };
 use std::time::{Duration, Instant};
+use tokio::time::sleep;
 
 #[derive(Clone, Debug)]
 pub struct Timer {
@@ -23,12 +24,13 @@ pub enum Message {
     Reset,
     OpenSettings,
     NextPhase,
+    Run(Preferences),
 }
 
 pub enum Action {
     None,
     OpenSettings,
-    NextPhase(Task<Message>),
+    Task(Task<Message>),
 }
 
 impl Timer {
@@ -54,7 +56,7 @@ impl Timer {
                 }
 
                 if self.time_remaining.is_zero() {
-                    return Action::NextPhase(Task::done(Message::NextPhase));
+                    return Action::Task(Task::done(Message::NextPhase));
                 }
 
                 Action::None
@@ -81,6 +83,20 @@ impl Timer {
                 self.time_remaining = preferences.duration_for(self.phase);
                 self.status = TimerStatus::Idle;
 
+                if preferences.auto_start.enabled {
+                    let preferences = preferences.clone();
+                    let delay = preferences.auto_start.delay;
+
+                    if !delay.is_zero() {
+                        return Action::Task(Task::perform(
+                            sleep(delay),
+                            move |_| Message::Run(preferences),
+                        ));
+                    }
+
+                    self.run(&preferences);
+                }
+
                 Action::None
             }
             Message::ToggleTimer => {
@@ -96,6 +112,11 @@ impl Timer {
             Message::Reset => {
                 self.time_remaining = preferences.duration_for(self.phase);
                 self.status = TimerStatus::Idle;
+
+                Action::None
+            }
+            Message::Run(preferences) => {
+                self.run(&preferences);
 
                 Action::None
             }
