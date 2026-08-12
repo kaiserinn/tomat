@@ -153,7 +153,7 @@ impl Settings {
                 auto_start_delay,
             ]
             .spacing(16)
-            .max_width(800)
+            .width(Length::Fill.max(800))
             .align_x(Alignment::Center)
         };
 
@@ -179,7 +179,7 @@ fn number_input<'a>(value: u64) -> Element<'a, Option<u64>> {
         button(icon::minus().size(20))
             .on_press(Some(value.saturating_sub(1)))
             .style(button::subtle),
-        text_input("", &value.to_string())
+        text_input("", value.to_string())
             .width(80)
             .align_x(Alignment::Center)
             .on_input(move |c| {

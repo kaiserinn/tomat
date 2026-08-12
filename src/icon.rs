@@ -11,7 +11,7 @@ impl<'a> Icon<'a> {
     fn new(handle: impl Into<Handle>) -> Self {
         Self {
             svg: svg(handle).style(move |theme: &iced::Theme, _| Style {
-                color: Some(theme.palette().text),
+                color: Some(theme.palette().background.base.text),
             }),
         }
     }

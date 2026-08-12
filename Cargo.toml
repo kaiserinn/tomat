@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = { version = "0.14.0", features = ["tokio", "svg"] }
+iced = { 
+    git = "https://github.com/iced-rs/iced",
+    rev = "65a6738df8eceae6771b83e95fe40fe3c805bf43",
+    features = ["tokio", "svg"]
+}
 tokio = { version = "1.53.1", features = ["time"] }
 tracing-subscriber = "0.3.23"
