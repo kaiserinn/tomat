@@ -1,4 +1,4 @@
-use crate::{icon, preferences::Preferences};
+use crate::{icon, icon::SvgExt, preferences::Preferences};
 use iced::{
     Alignment::Center,
     Element,
@@ -191,21 +191,25 @@ impl Timer {
                 .center(Fill);
 
         let controls = row![
-                button(if self.status.is_running() {
-                    icon::pause().size(20)
+            button(
+                if self.status.is_running() {
+                    icon!("pause")
                 } else {
-                    icon::play().size(20)
-                }).on_press(Message::ToggleTimer),
-
-                (!self.status.is_idle())
-                    .then(|| button(icon::stop().size(20))
-                        .on_press(Message::Reset)),
-
-                button(icon::skip().size(20)).on_press(Message::NextPhase)
-            ]
+                    icon!("play")
+                }
+                .size(20)
+                .style(icon::primary)
+            )
+            .on_press(Message::ToggleTimer),
+            (!self.status.is_idle())
+                .then(|| button(icon!("stop").size(20).style(icon::primary))
+                    .on_press(Message::Reset)),
+            button(icon!("skip").size(20).style(icon::primary))
+                .on_press(Message::NextPhase)
+        ]
         .spacing(8);
 
-        let settings = button(icon::settings().size(20))
+        let settings = button(icon!("settings").size(20))
             .on_press(Message::OpenSettings)
             .style(button::background);
 
@@ -220,9 +224,9 @@ impl Timer {
 fn session_dots<'a>(count: u32, total: u32) -> Element<'a, Message> {
     let dots = (0..total).map(|i| {
         (if i < count {
-            icon::circle_filled()
+            icon!("circle-filled")
         } else {
-            icon::circle_outline()
+            icon!("circle-outline")
         })
         .size(16)
         .into()

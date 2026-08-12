@@ -1,90 +1,44 @@
-use iced::widget::{
-    Svg, svg,
-    svg::{Handle, Style},
+use iced::{
+    Length, Theme,
+    widget::{
+        Svg,
+        svg::{Status, Style},
+    },
 };
 
-pub struct Icon<'a> {
-    pub svg: Svg<'a, iced::Theme>,
+pub trait SvgExt {
+    fn size(self, size: impl Into<Length>) -> Self;
 }
 
-impl<'a> Icon<'a> {
-    fn new(handle: impl Into<Handle>) -> Self {
-        Self {
-            svg: svg(handle).style(move |theme: &iced::Theme, _| Style {
-                color: Some(theme.palette().background.base.text),
-            }),
-        }
-    }
-
-    #[must_use]
-    pub fn size(mut self, size: impl Into<iced::Length>) -> Self {
+impl<'a> SvgExt for Svg<'a> {
+    fn size(self, size: impl Into<Length>) -> Self {
         let size = size.into();
-        self.svg = self.svg.width(size);
-        self.svg = self.svg.height(size);
-        self
-    }
-
-    #[must_use]
-    pub fn width(mut self, width: impl Into<iced::Length>) -> Self {
-        self.svg = self.svg.width(width);
-        self
-    }
-
-    #[must_use]
-    pub fn height(mut self, height: impl Into<iced::Length>) -> Self {
-        self.svg = self.svg.height(height);
-        self
-    }
-
-    #[must_use]
-    pub fn color(mut self, color: iced::Color) -> Self {
-        self.svg = self.svg.style(move |_, _| Style { color: Some(color) });
-        self
+        self.width(size).height(size)
     }
 }
 
-impl<'a, Message: 'a> From<Icon<'a>> for iced::Element<'a, Message> {
-    fn from(icon: Icon<'a>) -> Self {
-        icon.svg.into()
+#[macro_export]
+macro_rules! icon {
+    ( $path:literal ) => {
+        icon!("/assets/icons/", $path)
+    };
+    ( $base:literal, $path:expr ) => {
+        $crate::svg($crate::svg::Handle::from_memory(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            $base,
+            $path,
+            ".svg"
+        ))))
+        .style(|theme: &iced::Theme, _| $crate::svg::Style {
+            color: Some(theme.palette().background.base.text),
+        })
+    };
+}
+
+pub fn primary(theme: &Theme, _status: Status) -> Style {
+    let palette = theme.palette();
+
+    Style {
+        color: Some(palette.primary.base.text),
     }
-}
-
-pub fn play<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/play.svg")))
-}
-
-pub fn pause<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/pause.svg")))
-}
-
-pub fn stop<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/stop.svg")))
-}
-
-pub fn settings<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/settings.svg")))
-}
-
-pub fn chevron_left<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/chevron-left.svg")))
-}
-
-pub fn skip<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/skip.svg")))
-}
-
-pub fn circle_outline<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/circle-outline.svg")))
-}
-
-pub fn circle_filled<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/circle-filled.svg")))
-}
-
-pub fn plus<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/plus.svg")))
-}
-
-pub fn minus<'a>() -> Icon<'a> {
-    Icon::new(Handle::from_memory(include_bytes!("../assets/minus.svg")))
 }

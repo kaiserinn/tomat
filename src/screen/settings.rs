@@ -1,5 +1,5 @@
-use crate::icon;
 use crate::preferences::Preferences;
+use crate::{icon, icon::SvgExt};
 use iced::{
     Alignment, Element, Length, padding,
     widget::{
@@ -89,7 +89,7 @@ impl Settings {
 
     pub fn view(&self) -> Element<'_, Message> {
         let back = button(
-            row![icon::chevron_left().width(20), text("Back")].spacing(4),
+            row![icon!("chevron-left").width(20), text("Back")].spacing(4),
         )
         .padding(5)
         .on_press(Message::Back)
@@ -176,7 +176,7 @@ impl Settings {
 
 fn number_input<'a>(value: u64) -> Element<'a, Option<u64>> {
     row![
-        button(icon::minus().size(20))
+        button(icon!("minus").size(20))
             .on_press(Some(value.saturating_sub(1)))
             .style(button::subtle),
         text_input("", value.to_string())
@@ -191,7 +191,7 @@ fn number_input<'a>(value: u64) -> Element<'a, Option<u64>> {
                     Some(value)
                 }
             }),
-        button(icon::plus().size(20))
+        button(icon!("plus").size(20))
             .on_press(Some(value.saturating_add(1)))
             .style(button::subtle),
     ]

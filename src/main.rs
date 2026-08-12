@@ -1,5 +1,8 @@
 use crate::screen::{Screen, settings, timer};
-use iced::{Element, Subscription, Task, widget};
+use iced::{
+    Element, Subscription, Task, Theme,
+    widget::{container, svg},
+};
 use preferences::Preferences;
 
 mod font;
@@ -12,6 +15,7 @@ fn main() -> iced::Result {
 
     iced::application(Tomat::new, Tomat::update, Tomat::view)
         .subscription(Tomat::subscription)
+        .theme(Theme::CatppuccinMocha)
         .font(font::IOSEVKA)
         .font(font::IOSEVKA_BOLD)
         .font(font::IOSEVKA_ITALIC)
@@ -116,6 +120,6 @@ impl Tomat {
             Screen::Settings(state) => state.view().map(Message::Settings),
         };
 
-        widget::container(content).padding(24).into()
+        container(content).padding(24).into()
     }
 }
