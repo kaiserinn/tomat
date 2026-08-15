@@ -9,5 +9,6 @@ iced = {
     rev = "65a6738df8eceae6771b83e95fe40fe3c805bf43",
     features = ["tokio", "svg"]
 }
+rodio = "0.22.2"
 tokio = { version = "1.53.1", features = ["time"] }
 tracing-subscriber = "0.3.23"

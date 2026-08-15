@@ -1,4 +1,6 @@
-use crate::{icon, icon::SvgExt, preferences::Preferences};
+use crate::{
+    audio::AudioManager, icon, icon::SvgExt, preferences::Preferences,
+};
 use iced::{
     Alignment::Center,
     Element,
@@ -9,22 +11,24 @@ use iced::{
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 
-#[derive(Clone, Debug)]
 pub struct Timer {
     time_remaining: Duration,
     status: TimerStatus,
     phase: Phase,
     session_count: u32,
+    audio_manager: AudioManager,
 }
 
 #[derive(Clone, Debug)]
 pub enum Message {
-    Tick(Instant),
+    TimerTick(Instant),
+    AlertTick,
     ToggleTimer,
     Reset,
     OpenSettings,
     NextPhase,
     Run(Preferences),
+    StopPlayback,
 }
 
 pub enum Action {
@@ -40,6 +44,7 @@ impl Timer {
             status: TimerStatus::Idle,
             phase: Phase::Focus,
             session_count: 0,
+            audio_manager: AudioManager::new(),
         }
     }
 
@@ -49,13 +54,23 @@ impl Timer {
         preferences: &Preferences,
     ) -> Action {
         match message {
-            Message::Tick(now) => {
+            Message::TimerTick(now) => {
                 if let TimerStatus::Running(target_time) = self.status {
                     self.time_remaining =
                         target_time.saturating_duration_since(now);
                 }
 
                 if self.time_remaining.is_zero() {
+                    self.status = TimerStatus::Alert;
+                    self.audio_manager.play(preferences);
+                }
+
+                Action::None
+            }
+            Message::AlertTick => {
+                if self.audio_manager.is_empty() {
+                    // TODO: Might want to encapsulate the next phase logic
+                    //       in a function instead
                     return Action::Task(Task::done(Message::NextPhase));
                 }
 
@@ -105,6 +120,7 @@ impl Timer {
                         self.run(preferences)
                     }
                     TimerStatus::Running(_) => self.pause(),
+                    TimerStatus::Alert => (),
                 };
 
                 Action::None
@@ -127,6 +143,23 @@ impl Timer {
 
                 Action::OpenSettings
             }
+            Message::StopPlayback => {
+                self.audio_manager.stop();
+
+                Action::None
+            }
+        }
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        if self.status.is_running() {
+            iced::time::every(Duration::from_millis(500))
+                .map(|_| Message::TimerTick(Instant::now()))
+        } else if self.status.is_alert() {
+            iced::time::every(Duration::from_millis(50))
+                .map(|_| Message::AlertTick)
+        } else {
+            Subscription::none()
         }
     }
 
@@ -152,15 +185,6 @@ impl Timer {
     pub fn refresh_time_remaining(&mut self, preferences: &Preferences) {
         if self.status.is_idle() {
             self.time_remaining = preferences.duration_for(self.phase);
-        }
-    }
-
-    pub fn subscription(&self) -> Subscription<Message> {
-        if self.status.is_running() {
-            iced::time::every(Duration::from_millis(500))
-                .map(|_| Message::Tick(Instant::now()))
-        } else {
-            Subscription::none()
         }
     }
 
@@ -190,24 +214,32 @@ impl Timer {
             container(column![phase, time, session_count].align_x(Center))
                 .center(Fill);
 
-        let controls = row![
-            button(
-                if self.status.is_running() {
-                    icon!("pause")
-                } else {
-                    icon!("play")
-                }
-                .size(20)
-                .style(icon::primary)
-            )
-            .on_press(Message::ToggleTimer),
-            (!self.status.is_idle())
-                .then(|| button(icon!("stop").size(20).style(icon::primary))
-                    .on_press(Message::Reset)),
-            button(icon!("skip").size(20).style(icon::primary))
-                .on_press(Message::NextPhase)
-        ]
-        .spacing(8);
+        let controls = if !self.status.is_alert() {
+            row![
+                button(
+                    if self.status.is_running() {
+                        icon!("pause")
+                    } else {
+                        icon!("play")
+                    }
+                    .size(20)
+                    .style(icon::primary)
+                )
+                .on_press(Message::ToggleTimer),
+                (!self.status.is_idle()).then(|| button(
+                    icon!("stop").size(20).style(icon::primary)
+                )
+                .on_press(Message::Reset)),
+                button(icon!("skip").size(20).style(icon::primary))
+                    .on_press(Message::NextPhase),
+            ]
+            .spacing(8)
+        } else {
+            row![
+                button(icon!("stop").size(20).style(icon::primary))
+                    .on_press(Message::StopPlayback)
+            ]
+        };
 
         let settings = button(icon!("settings").size(20))
             .on_press(Message::OpenSettings)
@@ -240,6 +272,7 @@ enum TimerStatus {
     Running(Instant),
     Paused,
     Idle,
+    Alert,
 }
 
 impl TimerStatus {
@@ -253,6 +286,10 @@ impl TimerStatus {
 
     fn is_idle(&self) -> bool {
         matches!(self, TimerStatus::Idle)
+    }
+
+    fn is_alert(&self) -> bool {
+        matches!(self, TimerStatus::Alert)
     }
 }
 

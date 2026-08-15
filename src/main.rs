@@ -9,6 +9,7 @@ mod font;
 mod icon;
 mod preferences;
 mod screen;
+mod audio;
 
 fn main() -> iced::Result {
     tracing_subscriber::fmt::init();

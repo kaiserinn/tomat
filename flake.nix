@@ -33,6 +33,9 @@
         # Faster linker (NixOS by default uses ld)
         mold
         clang
+
+        # For audio (see https://github.com/RustAudio/rodio#dependencies-linux-only)
+        alsa-lib
       ];
 
       LD_LIBRARY_PATH = libPath;

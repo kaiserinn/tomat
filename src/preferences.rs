@@ -1,5 +1,7 @@
-use std::time::Duration;
 use crate::screen::timer::Phase;
+use std::time::Duration;
+
+const DEFAULT_ALERT: &[u8] = include_bytes!("../assets/chime.wav");
 
 #[derive(Clone, Debug)]
 pub struct Preferences {
@@ -7,7 +9,8 @@ pub struct Preferences {
     pub break_duration: Duration,
     pub long_break_duration: Duration,
     pub pomodoro_count: u32,
-    pub auto_start: AutoStart,
+    pub auto_start: AutoStartConfig,
+    pub alert: AlertConfig,
 }
 
 impl Preferences {
@@ -17,7 +20,8 @@ impl Preferences {
             break_duration: Duration::from_secs(5 * 60),
             long_break_duration: Duration::from_secs(20 * 60),
             pomodoro_count: 4,
-            auto_start: AutoStart::new(false, 3),
+            auto_start: AutoStartConfig::new(false, 3),
+            alert: AlertConfig::default(),
         }
     }
 
@@ -31,16 +35,33 @@ impl Preferences {
 }
 
 #[derive(Clone, Debug)]
-pub struct AutoStart {
+pub struct AutoStartConfig {
     pub enabled: bool,
     pub delay: Duration,
 }
 
-impl AutoStart {
+impl AutoStartConfig {
     pub fn new(enabled: bool, delay_in_secs: u64) -> Self {
         Self {
             enabled,
-            delay: Duration::from_secs(delay_in_secs)
+            delay: Duration::from_secs(delay_in_secs),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct AlertConfig {
+    pub audio: Vec<u8>,
+    pub timeout: Duration,
+    pub repeat: bool,
+}
+
+impl Default for AlertConfig {
+    fn default() -> Self {
+        Self {
+            audio: DEFAULT_ALERT.into(),
+            timeout: Duration::from_secs(15),
+            repeat: true,
         }
     }
 }
