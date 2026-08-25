@@ -3,11 +3,13 @@ use crate::{
 };
 use iced::{
     Alignment::Center,
-    Element,
+    Element, Event,
     Length::Fill,
-    Subscription, Task,
+    Subscription, Task, event,
     widget::{button, column, container, row, space::horizontal, stack, text},
+    window,
 };
+use notify_rust::{NotificationHandle, Timeout};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 
@@ -17,6 +19,8 @@ pub struct Timer {
     phase: Phase,
     session_count: u32,
     audio_manager: AudioManager,
+    notification_handle: Option<NotificationHandle>,
+    window_focused: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -28,7 +32,8 @@ pub enum Message {
     OpenSettings,
     NextPhase,
     Run(Preferences),
-    StopPlayback,
+    StopAlert,
+    WindowFocused(bool),
 }
 
 pub enum Action {
@@ -45,6 +50,8 @@ impl Timer {
             phase: Phase::Focus,
             session_count: 0,
             audio_manager: AudioManager::new(),
+            notification_handle: None,
+            window_focused: true,
         }
     }
 
@@ -61,6 +68,7 @@ impl Timer {
                 }
 
                 if self.time_remaining.is_zero() {
+                    self.notify();
                     self.status = TimerStatus::Alert;
                     self.audio_manager.play(preferences);
                 }
@@ -143,8 +151,17 @@ impl Timer {
 
                 Action::OpenSettings
             }
-            Message::StopPlayback => {
+            Message::StopAlert => {
                 self.audio_manager.stop();
+
+                if let Some(handle) = self.notification_handle.take() {
+                    handle.close();
+                }
+
+                Action::None
+            }
+            Message::WindowFocused(focused) => {
+                self.window_focused = focused;
 
                 Action::None
             }
@@ -152,7 +169,7 @@ impl Timer {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        if self.status.is_running() {
+        let tick_sub = if self.status.is_running() {
             iced::time::every(Duration::from_millis(500))
                 .map(|_| Message::TimerTick(Instant::now()))
         } else if self.status.is_alert() {
@@ -160,7 +177,19 @@ impl Timer {
                 .map(|_| Message::AlertTick)
         } else {
             Subscription::none()
-        }
+        };
+
+        let window_focus_sub = event::listen_with(|event, _, _| match event {
+            Event::Window(window::Event::Focused) => {
+                Some(Message::WindowFocused(true))
+            }
+            Event::Window(window::Event::Unfocused) => {
+                Some(Message::WindowFocused(false))
+            }
+            _ => None,
+        });
+
+        Subscription::batch([tick_sub, window_focus_sub])
     }
 
     pub fn pause(&mut self) {
@@ -179,6 +208,19 @@ impl Timer {
         } else if self.status.is_paused() {
             self.status =
                 TimerStatus::Running(Instant::now() + self.time_remaining)
+        }
+    }
+
+    fn notify(&mut self) {
+        if !self.window_focused {
+            self.notification_handle = Some(
+                notify_rust::Notification::new()
+                    .summary("Timer Stopped")
+                    .timeout(Timeout::Never)
+                    .action("click", "Click")
+                    .show()
+                    .unwrap(),
+            );
         }
     }
 
@@ -237,7 +279,7 @@ impl Timer {
         } else {
             row![
                 button(icon!("stop").size(20).style(icon::primary))
-                    .on_press(Message::StopPlayback)
+                    .on_press(Message::StopAlert)
             ]
         };
 
