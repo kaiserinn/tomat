@@ -169,14 +169,12 @@ impl Timer {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let tick_sub = if self.status.is_running() {
-            iced::time::every(Duration::from_millis(500))
-                .map(|_| Message::TimerTick(Instant::now()))
-        } else if self.status.is_alert() {
-            iced::time::every(Duration::from_millis(50))
-                .map(|_| Message::AlertTick)
-        } else {
-            Subscription::none()
+        let tick_sub = match self.status {
+            TimerStatus::Running(_) => iced::time::every(Duration::from_millis(500))
+                .map(|_| Message::TimerTick(Instant::now())),
+            TimerStatus::Alert =>iced::time::every(Duration::from_millis(50))
+                .map(|_| Message::AlertTick),
+            _ => Subscription::none(),
         };
 
         let window_focus_sub = event::listen_with(|event, _, _| match event {
@@ -217,7 +215,6 @@ impl Timer {
                 notify_rust::Notification::new()
                     .summary("Timer Stopped")
                     .timeout(Timeout::Never)
-                    .action("click", "Click")
                     .show()
                     .unwrap(),
             );

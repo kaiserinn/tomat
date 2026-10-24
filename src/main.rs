@@ -1,15 +1,22 @@
 use crate::screen::{Screen, settings, timer};
 use iced::{
-    Element, Subscription, Task, Theme,
-    widget::{container, svg},
+    Element, Font, Subscription, Task, Theme, font::{Family, Stretch}, widget::{container, svg}
 };
 use preferences::Preferences;
 
-mod font;
 mod icon;
 mod preferences;
 mod screen;
 mod audio;
+
+pub const IOSEVKA: &[u8] =
+    include_bytes!("../assets/fonts/Iosevka-Extended.ttf");
+
+pub const REGULAR: Font = Font {
+    family: Family::Name("Iosevka"),
+    stretch: Stretch::Expanded,
+    ..Font::DEFAULT
+};
 
 fn main() -> iced::Result {
     tracing_subscriber::fmt::init();
@@ -17,10 +24,8 @@ fn main() -> iced::Result {
     iced::application(Tomat::new, Tomat::update, Tomat::view)
         .subscription(Tomat::subscription)
         .theme(Theme::CatppuccinMocha)
-        .font(font::IOSEVKA)
-        .font(font::IOSEVKA_BOLD)
-        .font(font::IOSEVKA_ITALIC)
-        .default_font(font::REGULAR)
+        .font(IOSEVKA)
+        .default_font(REGULAR)
         .run()
 }
 
@@ -38,7 +43,8 @@ enum Message {
 
 impl Tomat {
     fn new() -> Self {
-        let preferences = Preferences::new();
+        let mut preferences = Preferences::new();
+        preferences.load();
 
         Self {
             screen: Screen::Timer(timer::Timer::new(&preferences)),
@@ -89,6 +95,7 @@ impl Tomat {
                         }
                         Action::Apply(preferences) => {
                             self.preferences = preferences;
+                            self.preferences.store();
 
                             if let Some(timer_state) = &mut self.timer_state {
                                 timer_state
