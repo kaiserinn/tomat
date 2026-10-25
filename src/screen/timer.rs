@@ -287,7 +287,7 @@ impl Timer {
         let footer =
             row![container(settings).width(Fill), controls, horizontal(),];
 
-        stack![main, container(footer).center_x(Fill).align_bottom(Fill),]
+        stack![main, container(footer).align_bottom(Fill),]
             .into()
     }
 }

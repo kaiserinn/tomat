@@ -1,5 +1,5 @@
 use crate::screen::timer::Phase;
-use std::{fs, time::Duration};
+use std::{fmt, fs, path::PathBuf, str::FromStr, time::Duration};
 
 const DEFAULT_ALERT: &[u8] = include_bytes!("../assets/chime.wav");
 
@@ -16,7 +16,8 @@ pub struct Preferences {
 impl Preferences {
     pub fn new() -> Self {
         Self {
-            pomodoro_duration: Duration::from_secs(25 * 60),
+            // pomodoro_duration: Duration::from_secs(25 * 60),
+            pomodoro_duration: Duration::from_secs(3),
             break_duration: Duration::from_secs(5 * 60),
             long_break_duration: Duration::from_secs(20 * 60),
             pomodoro_count: 4,
@@ -25,13 +26,13 @@ impl Preferences {
         }
     }
 
-    fn config_path() -> std::path::PathBuf {
+    fn config_path() -> Result<PathBuf, PreferencesError> {
         std::env::home_dir()
-            .unwrap()
-            .join(".config/tomat/tomat.toml")
+            .map(|path| path.join(".config/tomat/tomat.toml"))
+            .ok_or(PreferencesError::ConfigDirUnavailable)
     }
 
-    pub fn store(&self) {
+    pub fn store(&self) -> Result<(), PreferencesError> {
         let serialized = format!(
             "\
 pomodoro_duration = {}
@@ -53,63 +54,96 @@ alert_repeat = {}\
             self.alert.repeat,
         );
 
-        let path = Self::config_path();
+        let path = Self::config_path()?;
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir).unwrap();
+            fs::create_dir_all(dir).map_err(|_| PreferencesError::Io {
+                operation: "create config directory",
+                path: dir.to_path_buf(),
+            })?;
         }
-        std::fs::write(path, serialized).unwrap();
+        std::fs::write(&path, serialized).map_err(|_| PreferencesError::Io {
+            operation: "write config file",
+            path,
+        })
     }
 
-    pub fn load(&mut self) {
-        let path = Self::config_path();
-        if !(fs::exists(&path).unwrap_or(false)) {
-            return;
-        }
+    pub fn load(&mut self) -> Result<(), PreferencesError> {
+        let path = Self::config_path()?;
 
-        let content = fs::read_to_string(path).unwrap();
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(_) => {
+                return Err(PreferencesError::Io {
+                    operation: "read config file",
+                    path: path.to_path_buf(),
+                });
+            }
+        };
 
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with("#") {
+        for (i, raw_line) in content.lines().enumerate() {
+            let line = i + 1;
+            let raw_line = raw_line.trim();
+            if raw_line.is_empty() || raw_line.starts_with("#") {
                 continue;
             }
-            let (key, value) = line.split_once("=").unwrap();
+            let (key, value) = raw_line.split_once("=").ok_or(
+                PreferencesError::InvalidLine {
+                    line,
+                    content: raw_line.to_string(),
+                },
+            )?;
             let key = key.trim();
-            let value = value.split("#").next().unwrap_or("").trim();
+            let value = value.split("#").next().unwrap_or(value).trim();
 
             match key {
                 "pomodoro_duration" => {
-                    self.pomodoro_duration =
-                        Duration::from_secs(value.parse().unwrap())
+                    let secs = Self::parse_value(line, key, value)?;
+                    self.pomodoro_duration = Duration::from_secs(secs)
                 }
                 "break_duration" => {
-                    self.break_duration =
-                        Duration::from_secs(value.parse().unwrap());
+                    let secs = Self::parse_value(line, key, value)?;
+                    self.break_duration = Duration::from_secs(secs);
                 }
                 "long_break_duration" => {
-                    self.long_break_duration =
-                        Duration::from_secs(value.parse().unwrap());
+                    let secs = Self::parse_value(line, key, value)?;
+                    self.long_break_duration = Duration::from_secs(secs);
                 }
                 "pomodoro_count" => {
-                    self.pomodoro_count = value.parse().unwrap();
+                    self.pomodoro_count = Self::parse_value(line, key, value)?;
                 }
                 "auto_start_enabled" => {
-                    self.auto_start.enabled = value.parse().unwrap();
+                    self.auto_start.enabled =
+                        Self::parse_value(line, key, value)?;
                 }
                 "auto_start_delay" => {
-                    self.auto_start.delay =
-                        Duration::from_secs(value.parse().unwrap());
+                    let secs = Self::parse_value(line, key, value)?;
+                    self.auto_start.delay = Duration::from_secs(secs);
                 }
                 "alert_timeout" => {
-                    self.alert.timeout =
-                        Duration::from_secs(value.parse().unwrap());
+                    let secs = Self::parse_value(line, key, value)?;
+                    self.alert.timeout = Duration::from_secs(secs);
                 }
                 "alert_repeat" => {
-                    self.alert.repeat = value.parse().unwrap();
+                    self.alert.repeat = Self::parse_value(line, key, value)?;
                 }
                 _ => (),
             }
         }
+
+        Ok(())
+    }
+
+    fn parse_value<T: FromStr>(
+        line: usize,
+        key: &str,
+        value: &str,
+    ) -> Result<T, PreferencesError> {
+        value.parse().map_err(|_| PreferencesError::InvalidValue {
+            line,
+            key: key.to_string(),
+            value: value.to_string(),
+        })
     }
 
     pub fn duration_for(&self, phase: Phase) -> Duration {
@@ -149,6 +183,49 @@ impl Default for AlertConfig {
             audio: DEFAULT_ALERT.into(),
             timeout: Duration::from_secs(15),
             repeat: true,
+        }
+    }
+}
+
+pub enum PreferencesError {
+    ConfigDirUnavailable,
+    Io {
+        operation: &'static str,
+        path: PathBuf,
+    },
+    InvalidLine {
+        line: usize,
+        content: String,
+    },
+    InvalidValue {
+        line: usize,
+        key: String,
+        value: String,
+    },
+}
+
+impl fmt::Display for PreferencesError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Self::ConfigDirUnavailable => {
+                f.write_str("could not determine the home directory")
+            }
+            Self::Io {
+                operation, path, ..
+            } => {
+                write!(f, "could not {operation} `{}`", path.display())
+            }
+            Self::InvalidLine { line, content } => {
+                write!(
+                    f,
+                    "line {line}: expected `key = value`, got `{content}`"
+                )
+            }
+            Self::InvalidValue {
+                line, key, value, ..
+            } => {
+                write!(f, "line {line}: invalid value `{value}` for `{key}`")
+            }
         }
     }
 }

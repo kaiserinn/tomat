@@ -1,13 +1,19 @@
-use crate::screen::{Screen, settings, timer};
+use crate::{
+    screen::{Screen, settings, timer},
+    widget::alerts::{self, Alert, Alerts},
+};
 use iced::{
-    Element, Font, Subscription, Task, Theme, font::{Family, Stretch}, widget::{container, svg}
+    Element, Font, Length, Subscription, Task, Theme,
+    font::{Family, Stretch},
+    widget::{container, stack, svg},
 };
 use preferences::Preferences;
 
+mod audio;
 mod icon;
 mod preferences;
 mod screen;
-mod audio;
+mod widget;
 
 pub const IOSEVKA: &[u8] =
     include_bytes!("../assets/fonts/Iosevka-Extended.ttf");
@@ -33,23 +39,30 @@ struct Tomat {
     screen: Screen,
     timer_state: Option<timer::Timer>,
     preferences: Preferences,
+    alerts: Alerts,
 }
 
 #[derive(Clone, Debug)]
 enum Message {
     Timer(timer::Message),
     Settings(settings::Message),
+    Alerts(alerts::Message),
 }
 
 impl Tomat {
     fn new() -> Self {
         let mut preferences = Preferences::new();
-        preferences.load();
+        let mut alerts = Alerts::new();
+
+        if let Err(e) = preferences.load() {
+            alerts.push(Alert::Error(format!("Failed to load config: {e}")));
+        }
 
         Self {
             screen: Screen::Timer(timer::Timer::new(&preferences)),
             timer_state: None,
             preferences,
+            alerts,
         }
     }
 
@@ -95,7 +108,12 @@ impl Tomat {
                         }
                         Action::Apply(preferences) => {
                             self.preferences = preferences;
-                            self.preferences.store();
+
+                            if let Err(e) = self.preferences.store() {
+                                self.alerts.push(Alert::Error(format!(
+                                    "Failed to write to config: {e}"
+                                )))
+                            }
 
                             if let Some(timer_state) = &mut self.timer_state {
                                 timer_state
@@ -109,6 +127,11 @@ impl Tomat {
                 } else {
                     Task::none()
                 }
+            }
+            Message::Alerts(message) => {
+                self.alerts.update(message);
+
+                Task::none()
             }
         }
     }
@@ -128,6 +151,11 @@ impl Tomat {
             Screen::Settings(state) => state.view().map(Message::Settings),
         };
 
-        container(content).padding(24).into()
+        stack![
+            container(content).padding(24),
+            container(self.alerts.view().map(Message::Alerts))
+                .align_bottom(Length::Fill)
+        ]
+        .into()
     }
 }
