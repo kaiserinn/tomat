@@ -1,7 +1,5 @@
-use crate::screen::timer::Phase;
+use crate::{screen::timer::Phase, sound::{self, SoundId}};
 use std::{fmt, fs, path::PathBuf, str::FromStr, time::Duration};
-
-const DEFAULT_ALERT: &[u8] = include_bytes!("../assets/chime.wav");
 
 #[derive(Clone, Debug)]
 pub struct Preferences {
@@ -16,8 +14,7 @@ pub struct Preferences {
 impl Preferences {
     pub fn new() -> Self {
         Self {
-            // pomodoro_duration: Duration::from_secs(25 * 60),
-            pomodoro_duration: Duration::from_secs(3),
+            pomodoro_duration: Duration::from_secs(25 * 60),
             break_duration: Duration::from_secs(5 * 60),
             long_break_duration: Duration::from_secs(20 * 60),
             pomodoro_count: 4,
@@ -26,9 +23,9 @@ impl Preferences {
         }
     }
 
-    fn config_path() -> Result<PathBuf, PreferencesError> {
+    pub fn config_path() -> Result<PathBuf, PreferencesError> {
         std::env::home_dir()
-            .map(|path| path.join(".config/tomat/tomat.toml"))
+            .map(|path| path.join(".config/tomat"))
             .ok_or(PreferencesError::ConfigDirUnavailable)
     }
 
@@ -42,7 +39,8 @@ pomodoro_count = {}
 auto_start_enabled = {}
 auto_start_delay = {}
 alert_timeout = {}
-alert_repeat = {}\
+alert_repeat = {}
+alert_sound = \"{}\"\
             ",
             self.pomodoro_duration.as_secs(),
             self.break_duration.as_secs(),
@@ -52,23 +50,24 @@ alert_repeat = {}\
             self.auto_start.delay.as_secs(),
             self.alert.timeout.as_secs(),
             self.alert.repeat,
+            self.alert.sound,
         );
 
-        let path = Self::config_path()?;
-        if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir).map_err(|_| PreferencesError::Io {
-                operation: "create config directory",
-                path: dir.to_path_buf(),
-            })?;
-        }
-        std::fs::write(&path, serialized).map_err(|_| PreferencesError::Io {
-            operation: "write config file",
-            path,
-        })
+        let config_dir = Self::config_path()?;
+        fs::create_dir_all(&config_dir).map_err(|_| PreferencesError::Io {
+            operation: "create config directory",
+            path: config_dir.to_path_buf(),
+        })?;
+        std::fs::write(config_dir.join("tomat.toml"), serialized).map_err(
+            |_| PreferencesError::Io {
+                operation: "write config file",
+                path: config_dir,
+            },
+        )
     }
 
     pub fn load(&mut self) -> Result<(), PreferencesError> {
-        let path = Self::config_path()?;
+        let path = Self::config_path()?.join("tomat.toml");
 
         let content = match fs::read_to_string(&path) {
             Ok(content) => content,
@@ -94,7 +93,12 @@ alert_repeat = {}\
                 },
             )?;
             let key = key.trim();
-            let value = value.split("#").next().unwrap_or(value).trim();
+            let value = value
+                .split("#")
+                .next()
+                .unwrap_or(value)
+                .trim()
+                .trim_matches('"');
 
             match key {
                 "pomodoro_duration" => {
@@ -127,6 +131,23 @@ alert_repeat = {}\
                 "alert_repeat" => {
                     self.alert.repeat = Self::parse_value(line, key, value)?;
                 }
+                "alert_sound" => {
+                    let (id_type, key) = value
+                        .split_once(":")
+                        .ok_or(PreferencesError::InvalidValue {
+                            line,
+                            key: key.to_string(),
+                            value: value.to_string(),
+                        })?;
+
+                    self.alert.sound = if id_type == "custom" {
+                        SoundId::Custom(key.to_string())
+                    } else {
+                        SoundId::Builtin(key.to_string())
+                    }
+                }
+
+                // Add warning for unrecognized key?
                 _ => (),
             }
         }
@@ -172,7 +193,7 @@ impl AutoStartConfig {
 
 #[derive(Clone, Debug)]
 pub struct AlertConfig {
-    pub audio: Vec<u8>,
+    pub sound: SoundId,
     pub timeout: Duration,
     pub repeat: bool,
 }
@@ -180,13 +201,14 @@ pub struct AlertConfig {
 impl Default for AlertConfig {
     fn default() -> Self {
         Self {
-            audio: DEFAULT_ALERT.into(),
+            sound: sound::default_sound(),
             timeout: Duration::from_secs(15),
             repeat: true,
         }
     }
 }
 
+#[derive(Debug)]
 pub enum PreferencesError {
     ConfigDirUnavailable,
     Io {

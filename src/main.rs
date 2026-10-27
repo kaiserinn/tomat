@@ -14,6 +14,7 @@ mod icon;
 mod preferences;
 mod screen;
 mod widget;
+mod sound;
 
 pub const IOSEVKA: &[u8] =
     include_bytes!("../assets/fonts/Iosevka-Extended.ttf");
@@ -122,6 +123,7 @@ impl Tomat {
 
                             Task::none()
                         }
+                        Action::Task(task) => task.map(Message::Settings),
                         Action::None => Task::none(),
                     }
                 } else {

@@ -1,7 +1,6 @@
+use crate::{preferences::Preferences, sound};
 use rodio::{Decoder, MixerDeviceSink, Player, Source};
 use std::io::Cursor;
-
-use crate::preferences::Preferences;
 
 pub struct AudioManager {
     _sink: MixerDeviceSink,
@@ -20,18 +19,22 @@ impl AudioManager {
     }
 
     pub fn play(&mut self, preferences: &Preferences) {
-        let decoded =
-            Decoder::try_from(Cursor::new(preferences.alert.audio.clone()))
-                .unwrap();
+        let Ok(data) = sound::resolve(&preferences.alert.sound) else {
+            return;
+        };
+
+        let Ok(decoder) = Decoder::try_from(Cursor::new(data)) else {
+            return;
+        };
 
         if preferences.alert.repeat {
             self.player.append(
-                decoded
+                decoder
                     .repeat_infinite()
                     .take_duration(preferences.alert.timeout),
             );
         } else {
-            self.player.append(decoded);
+            self.player.append(decoder);
         }
     }
 

@@ -1,5 +1,7 @@
 use crate::preferences::Preferences;
+use crate::sound::{self, SoundId};
 use crate::{icon, icon::SvgExt};
+use iced::widget::pick_list;
 use iced::{
     Alignment, Element, Length, padding,
     widget::{
@@ -7,10 +9,14 @@ use iced::{
         toggler,
     },
 };
+use iced::{Task, window};
+use rfd::FileHandle;
+use std::fs;
 use std::time::Duration;
 
 pub struct Settings {
     preferences: Preferences,
+    sounds: Vec<SoundId>,
 }
 
 #[derive(Clone, Debug)]
@@ -22,6 +28,12 @@ pub enum Message {
     PomodoroCountChange(Option<u64>),
     AutoStartEnabledChange(bool),
     AutoStartDelayChange(Option<u64>),
+    AlertSoundChange(SoundId),
+    AlertSoundDelete,
+    AlertSoundChosen(Option<FileHandle>),
+    AlertRepeatChange(bool),
+    AlertTimeoutChange(Option<u64>),
+    Browse,
     Apply,
 }
 
@@ -29,11 +41,15 @@ pub enum Action {
     None,
     Back,
     Apply(Preferences),
+    Task(Task<Message>),
 }
 
 impl Settings {
     pub fn new(preferences: Preferences) -> Self {
-        Self { preferences }
+        Self {
+            preferences,
+            sounds: sound::entries().unwrap(),
+        }
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -80,6 +96,57 @@ impl Settings {
             Message::AutoStartDelayChange(c) => {
                 if let Some(c) = c {
                     self.preferences.auto_start.delay = Duration::from_secs(c);
+                }
+
+                Action::None
+            }
+            Message::Browse => Action::Task(pick_audio_file()),
+            Message::AlertSoundChange(choice) => {
+                self.preferences.alert.sound = choice;
+
+                Action::None
+            }
+            Message::AlertSoundDelete => {
+                let SoundId::Custom(name) = &self.preferences.alert.sound
+                else {
+                    return Action::None;
+                };
+
+                // TODO: Alert
+                if let Ok(path) = sound::sound_dir() {
+                    _ = fs::remove_file(path.join(name));
+                } else {
+                    return Action::None;
+                }
+
+                self.sounds
+                    .retain(|sound| sound != &self.preferences.alert.sound);
+                self.preferences.alert.sound = sound::default_sound();
+
+                Action::None
+            }
+            Message::AlertSoundChosen(file) => {
+                if let Some(file) = file {
+                    // TODO: handle error
+                    let dest = sound::sound_dir().unwrap();
+                    fs::create_dir_all(&dest).unwrap();
+                    fs::copy(file.path(), dest.join(file.file_name())).unwrap();
+
+                    let id = SoundId::Custom(file.file_name());
+                    self.preferences.alert.sound = id.clone();
+                    self.sounds.push(id);
+                }
+
+                Action::None
+            }
+            Message::AlertRepeatChange(c) => {
+                self.preferences.alert.repeat = c;
+
+                Action::None
+            }
+            Message::AlertTimeoutChange(c) => {
+                if let Some(c) = c {
+                    self.preferences.alert.timeout = Duration::from_secs(c);
                 }
 
                 Action::None
@@ -144,6 +211,60 @@ impl Settings {
                 None
             };
 
+            let alert_sound = {
+                let is_custom =
+                    matches!(self.preferences.alert.sound, SoundId::Custom(_));
+
+                settings_item(
+                    "Alert sound",
+                    row![
+                        is_custom.then_some(
+                            button(icon!("x").size(16))
+                                .padding(5)
+                                .style(button::subtle)
+                                .on_press(Message::AlertSoundDelete)
+                        ),
+                        pick_list(
+                            Some(&self.preferences.alert.sound),
+                            sound::entries().unwrap(),
+                            |s| match s {
+                                SoundId::Builtin(s) => s.clone(),
+                                SoundId::Custom(s) => s.clone(),
+                            },
+                        )
+                        .on_select(Message::AlertSoundChange),
+                        button("browse").on_press(Message::Browse),
+                    ]
+                    .spacing(8)
+                    .align_y(Alignment::Center),
+                )
+            };
+
+            let alert_repeat = settings_item(
+                "Repeat alert sound",
+                toggler(self.preferences.alert.repeat)
+                    .size(24)
+                    .on_toggle(Message::AlertRepeatChange),
+            );
+
+            let alert_timeout = if self.preferences.alert.repeat {
+                Some(
+                    settings_item(
+                        "Alert timeout (seconds)",
+                        number_input(self.preferences.alert.timeout.as_secs())
+                            .map(Message::AlertTimeoutChange),
+                    )
+                    .padding(padding::left(40)),
+                )
+            } else {
+                None
+            };
+
+            let alert_category = settings_category(
+                "Alert",
+                column![alert_sound, alert_repeat, alert_timeout].spacing(16),
+            );
+
             column![
                 pomodoro_duration,
                 break_duration,
@@ -151,6 +272,7 @@ impl Settings {
                 pomodoro_count,
                 auto_start,
                 auto_start_delay,
+                alert_category,
             ]
             .spacing(16)
             .width(Length::Fill.max(800))
@@ -172,6 +294,17 @@ impl Settings {
             .height(Length::Fill)
             .into()
     }
+}
+
+fn pick_audio_file() -> Task<Message> {
+    window::oldest()
+        .and_then(|id| {
+            window::run(id, |window| {
+                rfd::AsyncFileDialog::new().set_parent(&window).pick_file()
+            })
+        })
+        .then(Task::future)
+        .map(Message::AlertSoundChosen)
 }
 
 fn number_input<'a>(value: u64) -> Element<'a, Option<u64>> {
@@ -206,4 +339,16 @@ fn settings_item<'a>(
     row![text(label).size(18).width(Length::Fill), container(widget)]
         .spacing(16)
         .align_y(Alignment::Center)
+}
+
+fn settings_category<'a>(
+    title: &'a str,
+    items: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    let items: Element<'a, Message> = items.into();
+
+    column![text(title).size(16).style(text::secondary), items]
+        .spacing(16)
+        .padding([32, 0])
+        .into()
 }
