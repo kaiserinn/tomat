@@ -1,5 +1,18 @@
 {
   "nodes": {
+    "fonts": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786365732,
+        "narHash": "sha256-AibacMlcN2w9Ro+p4Nn+jQkkMelSVj9JtcNogtRvKf0=",
+        "path": "/home/azhar/dev/tomat/assets/fonts",
+        "type": "path"
+      },
+      "original": {
+        "path": "/home/azhar/dev/tomat/assets/fonts",
+        "type": "path"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1783389287,
@@ -16,6 +29,7 @@
     },
     "root": {
       "inputs": {
+        "fonts": "fonts",
         "nixpkgs": "nixpkgs"
       }
     }
